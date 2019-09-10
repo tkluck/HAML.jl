@@ -1,0 +1,7 @@
+name = "HAML"
+uuid = "0bc81568-2411-4001-9bf1-c899fa54f385"
+authors = ["Timo Kluck <tkluck@infty.nl>"]
+version = "0.1.0"
+
+[deps]
+DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
