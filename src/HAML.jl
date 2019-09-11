@@ -49,7 +49,7 @@ function joinattributes(io, attributes)
                 write(io, name)
             else
                 ix = findlast(!ignore, values)
-                htmlesc(io, values[ix])
+                htmlesc(io, string(values[ix]))
             end
             write(io, "'")
         end
@@ -118,7 +118,7 @@ function parse_tag_stanza!(code, curindent, source)
         advance!(source, offset - 1)
         @assert @capture source r"\h*$(?<nl>\v*)"m
         code_for_inline_val = :( let val = $(esc(expr))
-            htmlesc(io, val)
+            htmlesc(io, string(val))
         end )
     elseif !isnothing(rest_of_line)
         code_for_inline_val = quote
@@ -158,7 +158,11 @@ end
 
 function parse_indented_block!(code, curindent, source)
     parsed_something = false
+
+    controlflow_this = nothing
+    controlflow_prev = nothing
     while !isempty(source[])
+        controlflow_this, controlflow_prev = nothing, controlflow_this
         if indentlength(match(r"\A\h*", source[]).match) <= indentlength(curindent)
              return parsed_something
          end
@@ -179,6 +183,11 @@ function parse_indented_block!(code, curindent, source)
                     block.args[1] = esc(block.args[1])
                     push!(code.args, block)
                     parse_indented_block!(block.args[2], indent, source)
+                    controlflow_this = block
+                elseif !isnothing(match(r"\A\h*else\h*\z", rest_of_line))
+                    block = quote end
+                    push!(controlflow_prev.args, block)
+                    parse_indented_block!(block, indent, source)
                 else
                     expr = parse(rest_of_line)
                     push!(code.args, esc(expr))
@@ -190,7 +199,7 @@ function parse_indented_block!(code, curindent, source)
                 push!(code.args, quote
                     write(io, $indent)
                     let val = $(esc(expr))
-                        htmlesc(io, val)
+                        htmlesc(io, string(val))
                     end
                     write(io, $nl)
                 end)

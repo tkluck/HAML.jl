@@ -141,4 +141,33 @@ end
             """
         end
     end
+    @testset "Control flow" begin
+        @expandsto """
+          <div>1</div>
+          <div>2</div>
+          <div>3</div>
+        """ haml"""
+        - for i in 1:3
+          %= i
+        """
+
+#        @expandsto """
+#          <div>3</div>
+#          <div>2</div>
+#          <div>1</div>
+#        """ haml"""
+#        - list = collect(1:3)
+#        - while !isempty(list)
+#          %= pop!(list)
+#         """
+
+        @expandsto """
+          <p>All else follows</p>
+        """ haml"""
+        - if 2 + 2 == 4
+          %p All else follows
+        - else
+          %p I love Big Brother
+        """
+    end
 end
