@@ -132,9 +132,11 @@ end
         let motto="Let's get ready"
             @expandsto """
             <span motto='Let&#39;s get ready'></span>
+            <div>Let&#39;s get ready</div>
             Let&#39;s get ready
             """ haml"""
             %span(motto=motto)
+            %= motto
             = motto
             """
         end

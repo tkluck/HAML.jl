@@ -57,9 +57,9 @@ function joinattributes(io, attributes)
 end
 
 function parse_tag_stanza!(code, curindent, source)
-    if !@capture source r"%(?<tagname>[A-Z-a-z0-9]+)"
-        tagname = "div"
-    end
+    @assert @capture source r"(?:%(?<tagname>[A-Z-a-z0-9]+)?)?"
+    tagname = something(tagname, "div")
+
     let_block = :( let attributes = OrderedDict(); end )
     push!(code.args, let_block)
     block = let_block.args[2].args
@@ -103,6 +103,8 @@ function parse_tag_stanza!(code, curindent, source)
     end
 
     @assert @capture source r"""
+        (?<equalssign>\=)
+        |
         (?<closingslash>/)?
         \h*
         (?<rest_of_line>.+)?
@@ -110,35 +112,45 @@ function parse_tag_stanza!(code, curindent, source)
         (?<nl>\v*)
     """mx
 
-    open, close = "<$tagname", "</$tagname>"
+    code_for_inline_val = nothing
+    if !isnothing(equalssign)
+        expr, offset = parse(source[], 1, greedy=false)
+        advance!(source, offset - 1)
+        @assert @capture source r"\h*$(?<nl>\v*)"m
+        code_for_inline_val = :( let val = $(esc(expr))
+            htmlesc(io, val)
+        end )
+    elseif !isnothing(rest_of_line)
+        code_for_inline_val = quote
+            write(io, $rest_of_line)
+        end
+    end
+
     body = quote end
     haveblock = parse_indented_block!(body, curindent, source)
-    if haveblock
+    if !isnothing(closingslash)
+        @assert isnothing(code_for_inline_val)
         push!(block, quote
-            write(io, $curindent, $open)
+            write(io, $"$curindent<$tagname")
+            joinattributes(io, attributes)
+            write(io, $" />$nl")
+        end)
+    elseif haveblock
+        @assert isnothing(code_for_inline_val)
+        push!(block, quote
+            write(io, $"$curindent<$tagname")
             joinattributes(io, attributes)
             write(io, ">\n")
-            # TODO: write rest_of_line
             $body
-            write(io, $curindent, $close, "\n")
-        end)
-    elseif !isnothing(closingslash)
-        push!(block, quote
-            write(io, $curindent, $open)
-            joinattributes(io, attributes)
-            write(io, " />", $nl)
-        end)
-    elseif !isnothing(rest_of_line)
-        push!(block, quote
-            write(io, $curindent, $open)
-            joinattributes(io, attributes)
-            write(io, ">", $rest_of_line, $close, $nl)
+            write(io, $"$curindent</$tagname>$nl")
         end)
     else
         push!(block, quote
-            write(io, $curindent, $open)
+            write(io, $"$curindent<$tagname")
             joinattributes(io, attributes)
-            write(io, ">", $close, $nl)
+            write(io, ">")
+            $code_for_inline_val
+            write(io, $"</$tagname>$nl")
         end)
     end
 end
