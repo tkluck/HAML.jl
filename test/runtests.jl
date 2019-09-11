@@ -128,4 +128,15 @@ end
         # no closing newline
         @expandsto "<div class='hello'></div>" haml"%div.hello"
     end
+    @testset "Escaping" begin
+        let motto="Let's get ready"
+            @expandsto """
+            <span motto='Let&#39;s get ready'></span>
+            Let&#39;s get ready
+            """ haml"""
+            %span(motto=motto)
+            = motto
+            """
+        end
+    end
 end

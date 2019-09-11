@@ -3,6 +3,7 @@ module HAML
 import Base.Meta: parse
 
 import DataStructures: OrderedDict
+import Markdown: htmlesc
 
 advance!(s, delta) = s[] = SubString(s[], delta + 1)
 
@@ -48,7 +49,7 @@ function joinattributes(io, attributes)
                 write(io, name)
             else
                 ix = findlast(!ignore, values)
-                write(io, values[ix])
+                htmlesc(io, values[ix])
             end
             write(io, "'")
         end
@@ -103,10 +104,10 @@ function parse_tag_stanza!(code, curindent, source)
 
     @assert @capture source r"""
         (?<closingslash>/)?
-        [ \t]*
+        \h*
         (?<rest_of_line>.+)?
         $
-        (?<nl>\n?)
+        (?<nl>\v*)
     """mx
 
     open, close = "<$tagname", "</$tagname>"
@@ -146,12 +147,12 @@ end
 function parse_indented_block!(code, curindent, source)
     parsed_something = false
     while !isempty(source[])
-        if indentlength(match(r"\A\s*", source[]).match) <= indentlength(curindent)
+        if indentlength(match(r"\A\h*", source[]).match) <= indentlength(curindent)
              return parsed_something
          end
         if @capture source r"""
             ^
-            (?<indent>\s*)                # indentation
+            (?<indent>\h*)                # indentation
             (?=(?<sigil>%|\#|\.|-|=|\\))? # stanza type
             (?:-|=|\\)?                   # consume these stanza types
         """xm
@@ -160,8 +161,8 @@ function parse_indented_block!(code, curindent, source)
             if sigil in ("%", "#", ".")
                 parse_tag_stanza!(code, indent, source)
             elseif sigil == "-"
-                @assert @capture source r"\s*(?<rest_of_line>.*)$\n?"m
-                if startswith(rest_of_line, r"\s*(?:for|if|while)")
+                @assert @capture source r"\h*(?<rest_of_line>.*)$\v?"m
+                if startswith(rest_of_line, r"\h*(?:for|if|while)")
                     block = parse(rest_of_line * "\nend")
                     block.args[1] = esc(block.args[1])
                     push!(code.args, block)
@@ -173,14 +174,16 @@ function parse_indented_block!(code, curindent, source)
             elseif sigil == "="
                 expr, offset = parse(source[], 1, greedy=false)
                 advance!(source, offset - 1)
-                @assert @capture source r"\s*$(?<nl>\n?)"m
+                @assert @capture source r"\h*$(?<nl>\v*)"m
                 push!(code.args, quote
+                    write(io, $indent)
                     let val = $(esc(expr))
-                        write(io, $indent, val, $nl)
+                        htmlesc(io, val)
                     end
+                    write(io, $nl)
                 end)
             elseif sigil == "\\" || sigil == nothing
-                @assert @capture source r"\s*(?<rest_of_line>.*)$(?<nl>\n?)"m
+                @assert @capture source r"\h*(?<rest_of_line>.*)$(?<nl>\v*)"m
                 push!(code.args, quote
                     write(io, $indent, $rest_of_line, $nl)
                 end)
