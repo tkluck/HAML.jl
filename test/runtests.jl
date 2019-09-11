@@ -115,4 +115,17 @@ end
             %h1.class.otherclass#id La La La
         """
     end
+    @testset "Whitespace" begin
+        @expandsto "" haml""
+        @expandsto "
+        " haml"
+        "
+        @expandsto "
+
+        " haml"
+
+        "
+        # no closing newline
+        @expandsto "<div class='hello'></div>" haml"%div.hello"
+    end
 end
