@@ -59,7 +59,9 @@ function parse_tag_stanza!(code, curindent, source)
     if !@capture source r"%(?<tagname>[A-Z-a-z0-9]+)"
         tagname = "div"
     end
-    push!(code.args, :( attributes = OrderedDict() ) )
+    let_block = :( let attributes = OrderedDict(); end )
+    push!(code.args, let_block)
+    block = let_block.args[2].args
     while @capture source r"""
         (?=(?<openbracket>\())
         |
@@ -74,21 +76,22 @@ function parse_tag_stanza!(code, curindent, source)
                 attributes_tuple_expr = :( ($attributes_tuple_expr,) )
             end
             advance!(source, offset - 1)
-            push!(code.args, quote
-                attributes_tuple = $(esc(attributes_tuple_expr))
-                for (attr, value) in pairs(attributes_tuple)
-                    a = get!(Vector, attributes, attr)
-                    append!(a, [value;])
+            push!(block, quote
+                let attributes_tuple = $(esc(attributes_tuple_expr))
+                    for (attr, value) in pairs(attributes_tuple)
+                        a = get!(Vector, attributes, attr)
+                        append!(a, [value;])
+                    end
                 end
             end)
         else
             if sigil == "."
-                push!(code.args, quote
+                push!(block, quote
                     a = get!(Vector, attributes, :class)
                     push!(a, $value)
                 end)
             elseif sigil == "#"
-                push!(code.args, quote
+                push!(block, quote
                     a = get!(Vector, attributes, :id)
                     push!(a, $value)
                 end)
@@ -110,7 +113,7 @@ function parse_tag_stanza!(code, curindent, source)
     body = quote end
     haveblock = parse_indented_block!(body, curindent, source)
     if haveblock
-        push!(code.args, quote
+        push!(block, quote
             write(io, $curindent, $open)
             joinattributes(io, attributes)
             write(io, ">\n")
@@ -119,19 +122,19 @@ function parse_tag_stanza!(code, curindent, source)
             write(io, $curindent, $close, "\n")
         end)
     elseif !isnothing(closingslash)
-        push!(code.args, quote
+        push!(block, quote
             write(io, $curindent, $open)
             joinattributes(io, attributes)
             write(io, " />", $nl)
         end)
     elseif !isnothing(rest_of_line)
-        push!(code.args, quote
+        push!(block, quote
             write(io, $curindent, $open)
             joinattributes(io, attributes)
             write(io, ">", $rest_of_line, $close, $nl)
         end)
     else
-        push!(code.args, quote
+        push!(block, quote
             write(io, $curindent, $open)
             joinattributes(io, attributes)
             write(io, ">", $close, $nl)
