@@ -4,41 +4,30 @@ import Base.Meta: parse
 
 import DataStructures: OrderedDict
 
-const stanza_regex = r"""
-    ^                                          # line beginning
-    (?<indent>\s*)                             # indentation
-    (?<sigil>%|\#|\.|-|=|\\)?                  # stanza type
-    (?<rest>
-        \s*(?<block>for|if|while)?             # block introduction
-        (?:.*)                                 # rest of line
-    )
-    $\n                                        # line end
-"""xm
-const offset_indent, offset_sigil, offset_rest = 1, 2, 3
+advance!(s, delta) = s[] = SubString(s[], delta + 1)
 
-const tag_regex = r"""
-    %                         # literal percent
-    (?<tagname>[A-Za-z0-9]+)? # tag name
-"""x
-const tag_attrs_regex = r"""
-    (?<openbracket>\()
-    |
-    (?:
-        (?<sigil>\.|\#)
-        (?<value>[A-Za-z0-9]+)
-    )
-"""x
-const rest_regex = r"""
-    (?<closingslash>/)?
-    [ \t]*
-    (?<rest>.+)?
-    $
-"""mx
-
-function mustmatch(r, s, ix)
-    m = match(r, s, ix)
-    m == nothing && error("Syntax error: should match $r at '$(s[ix:min(end,ix+10)])'...")
-    m
+macro capture(haystack, needle)
+    r = r"\A" * eval(needle)
+    captures = Base.PCRE.capture_names(r.regex)
+    if !isempty(captures)
+        maxix = maximum(keys(captures))
+        symbols = map(1:maxix) do ix
+            capturename = get(captures, ix, "_")
+            esc(Symbol(capturename))
+        end
+        return quote
+            m = match($r, $(esc(haystack))[])
+            if isnothing(m)
+                false
+            else
+                ($(symbols...),) = m.captures
+                advance!($(esc(haystack)), length(m.match))
+                true
+            end
+        end
+    else
+        return :( !isnothing(match($r, $(esc(haystack))[])) )
+    end
 end
 
 indentlength(s) = mapreduce(c -> c == '\t' ? 8 : 1, +, s, init=0)
@@ -54,6 +43,9 @@ function joinattributes(io, attributes)
                 join(io, filter(!ignore, values), " ")
             elseif name == :id
                 join(io, filter(!ignore, values), "_")
+            elseif length(values) == 1 && values[1] === true
+                # selected='selected'
+                write(io, name)
             else
                 ix = findlast(!ignore, values)
                 write(io, values[ix])
@@ -63,17 +55,25 @@ function joinattributes(io, attributes)
     end
 end
 
-function parse_tag_stanza!(code, curindent, source, sourceix)
-    if (n = match(tag_regex, source, sourceix[])) |> !isnothing
-        sourceix[] += length(n.match)
-        tagname = something(n[:tagname], "div")
-    else
+function parse_tag_stanza!(code, curindent, source)
+    if !@capture source r"%(?<tagname>[A-Z-a-z0-9]+)"
         tagname = "div"
     end
     push!(code.args, :( attributes = OrderedDict() ) )
-    while (n = match(tag_attrs_regex, source, sourceix[])) |> !isnothing
-        if !isnothing(n[:openbracket])
-            attributes_tuple_expr, sourceix[] = parse(source, sourceix[], greedy=false)
+    while @capture source r"""
+        (?=(?<openbracket>\())
+        |
+        (?:
+            (?<sigil>\.|\#)
+            (?<value>[A-Za-z0-9]+)
+        )
+    """x
+        if !isnothing(openbracket)
+            attributes_tuple_expr, offset = parse(source[], 1, greedy=false)
+            if attributes_tuple_expr.head == :(=)
+                attributes_tuple_expr = :( ($attributes_tuple_expr,) )
+            end
+            advance!(source, offset - 1)
             push!(code.args, quote
                 attributes_tuple = $(esc(attributes_tuple_expr))
                 for (attr, value) in pairs(attributes_tuple)
@@ -82,103 +82,110 @@ function parse_tag_stanza!(code, curindent, source, sourceix)
                 end
             end)
         else
-            sourceix[] += length(n.match)
-            if n[:sigil] == "."
+            if sigil == "."
                 push!(code.args, quote
                     a = get!(Vector, attributes, :class)
-                    push!(a, $(n[:value]))
+                    push!(a, $value)
                 end)
-            elseif n[:sigil] == "#"
+            elseif sigil == "#"
                 push!(code.args, quote
                     a = get!(Vector, attributes, :id)
-                    push!(a, $(n[:value]))
+                    push!(a, $value)
                 end)
             else
-                error("Unknown sigil: $(n[:sigil])")
+                error("Unknown sigil: $sigil")
             end
         end
     end
-    n = mustmatch(rest_regex, source, sourceix[])
-    sourceix[] += length(n.match)
+
+    @assert @capture source r"""
+        (?<closingslash>/)?
+        [ \t]*
+        (?<rest_of_line>.+)?
+        $
+        (?<nl>\n?)
+    """mx
 
     open, close = "<$tagname", "</$tagname>"
     body = quote end
-    haveblock = parse_indented_block!(body, curindent, source, sourceix)
+    haveblock = parse_indented_block!(body, curindent, source)
     if haveblock
         push!(code.args, quote
             write(io, $curindent, $open)
             joinattributes(io, attributes)
             write(io, ">\n")
-            # TODO: write n[:rest]
+            # TODO: write rest_of_line
             $body
             write(io, $curindent, $close, "\n")
         end)
-    elseif !isnothing(n[:closingslash])
+    elseif !isnothing(closingslash)
         push!(code.args, quote
             write(io, $curindent, $open)
             joinattributes(io, attributes)
-            write(io, " />\n")
+            write(io, " />", $nl)
         end)
-    elseif !isnothing(n[:rest])
+    elseif !isnothing(rest_of_line)
         push!(code.args, quote
             write(io, $curindent, $open)
             joinattributes(io, attributes)
-            write(io, ">", $(n[:rest]), $close, "\n")
+            write(io, ">", $rest_of_line, $close, $nl)
         end)
     else
         push!(code.args, quote
             write(io, $curindent, $open)
             joinattributes(io, attributes)
-            write(io, ">", $close, "\n")
+            write(io, ">", $close, $nl)
         end)
     end
 end
 
 
-function parse_indented_block!(code, curindent, source, sourceix=Ref(1))
+function parse_indented_block!(code, curindent, source)
     parsed_something = false
-    while sourceix[] <= length(source)
-        if sourceix[] == length(source) && source[sourceix[]] == '\n'
-            push!(code.args, :( write(io, "\n") ))
-            sourceix[] += 1
-            return parsed_something
-        end
+    while !isempty(source[])
+        if indentlength(match(r"\A\s*", source[]).match) <= indentlength(curindent)
+             return parsed_something
+         end
+        if @capture source r"""
+            ^
+            (?<indent>\s*)                # indentation
+            (?=(?<sigil>%|\#|\.|-|=|\\))? # stanza type
+            (?:-|=|\\)?                   # consume these stanza types
+        """xm
+            parsed_something = true
 
-        m = mustmatch(stanza_regex, source, sourceix[])
-        indentlength(m[:indent]) <= indentlength(curindent) && return parsed_something
-
-        parsed_something = true
-
-        if m[:sigil] in ("%", "#", ".")
-            sourceix[] = m.offsets[offset_sigil]
-            parse_tag_stanza!(code, m[:indent], source, sourceix)
-        elseif m[:sigil] == "-" && isnothing(m[:block])
-            expr = parse(m[:rest])
-            push!(code.args, esc(expr))
-            sourceix[] += length(m.match)
-        elseif m[:sigil] == "-" && !isnothing(m[:block])
-            block = parse(m[:rest] * "\nend")
-            block.args[1] = esc(block.args[1])
-            push!(code.args, block)
-            sourceix[] += length(m.match)
-            parse_indented_block!(block.args[2], m[:indent], source, sourceix)
-        elseif m[:sigil] == "="
-            expr, sourceix[] = parse(source, m.offsets[offset_sigil] + 1, greedy=false)
-            push!(code.args, quote
-                write(io, $(m[:indent]), $(esc(expr)), "\n")
-            end)
-        elseif m[:sigil] == "\\"
-            push!(code.args, quote
-                write(io, $(m[:indent]), $(m[:rest]), "\n")
-            end)
-            sourceix[] += length(m.match) + 1
-        elseif m[:sigil] == nothing
-            push!(code.args, quote
-                write(io, $(m[:indent]), $(m[:rest]), "\n")
-            end)
-            sourceix[] += length(m.match) + 1
+            if sigil in ("%", "#", ".")
+                parse_tag_stanza!(code, indent, source)
+            elseif sigil == "-"
+                @assert @capture source r"\s*(?<rest_of_line>.*)$\n?"m
+                if startswith(rest_of_line, r"\s*(?:for|if|while)")
+                    block = parse(rest_of_line * "\nend")
+                    block.args[1] = esc(block.args[1])
+                    push!(code.args, block)
+                    parse_indented_block!(block.args[2], indent, source)
+                else
+                    expr = parse(rest_of_line)
+                    push!(code.args, esc(expr))
+                end
+            elseif sigil == "="
+                expr, offset = parse(source[], 1, greedy=false)
+                advance!(source, offset - 1)
+                @assert @capture source r"\s*$(?<nl>\n?)"m
+                push!(code.args, quote
+                    let val = $(esc(expr))
+                        write(io, $indent, val, $nl)
+                    end
+                end)
+            elseif sigil == "\\" || sigil == nothing
+                @assert @capture source r"\s*(?<rest_of_line>.*)$(?<nl>\n?)"m
+                push!(code.args, quote
+                    write(io, $indent, $rest_of_line, $nl)
+                end)
+            else
+                error("Unrecognized sigil: $sigil")
+            end
         else
-            error("Unrecognized sigil: $(m[:sigil])")
+            error("Unrecognized")
         end
     end
     return parsed_something
@@ -186,7 +193,7 @@ end
 
 function generate_haml_writer_codeblock(source)
     code = quote end
-    parse_indented_block!(code, nothing, source)
+    parse_indented_block!(code, nothing, Ref(source))
     return code
 end
 

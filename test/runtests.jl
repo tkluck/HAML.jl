@@ -69,7 +69,7 @@ end
               <div>Contents</div>
             """ haml"""
             - for item in [ (id=1, _type=:numeric), (id=2, _type=:numeric), (id=3, _type=nothing) ]
-              %div(class = [item._type; item == sortcol && [:sort, sortdir]], ) Contents
+              %div(class = [item._type; item == sortcol && [:sort, sortdir]]) Contents
             """
         end
         begin
@@ -81,5 +81,38 @@ end
             %sandwich(hash1()..., hash2()..., delicious = "true")/
             """
         end
+
+        let item = []
+            @expandsto """
+            <div class='item empty'></div>
+            """ haml"""
+            .item(class = isempty(item) && "empty")
+            """
+        end
+
+        @expandsto """
+        <input selected='selected' />
+        """ haml"""
+        %input(selected=true)/
+        """
+
+        @expandsto """
+        <input />
+        """ haml"""
+        %input(selected=false)/
+        """
+
+        @expandsto """
+        <div id='things'>
+            <span id='rice'>Chicken Fried</span>
+            <p class='beans' food='true'>The magical fruit</p>
+            <h1 class='class otherclass' id='id'>La La La</h1>
+        </div>
+        """ haml"""
+        %div#things
+            %span#rice Chicken Fried
+            %p.beans(food = "true") The magical fruit
+            %h1.class.otherclass#id La La La
+        """
     end
 end
