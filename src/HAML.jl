@@ -114,9 +114,14 @@ function parse_tag_stanza!(code, curindent, source)
 
     code_for_inline_val = nothing
     if !isnothing(equalssign)
-        expr, offset = parse(source[], 1, greedy=false)
-        advance!(source, offset - 1)
-        @assert @capture source r"\h*$(?<nl>\v*)"m
+        @assert @capture source r"""
+            \h*
+            (?<code_to_parse>
+                (?:.*|,\h*\v)*
+            )
+            $(?<nl>\v?)
+        """mx
+        expr = parse(code_to_parse)
         code_for_inline_val = :( let val = $(esc(expr))
             htmlesc(io, string(val))
         end )
@@ -177,25 +182,35 @@ function parse_indented_block!(code, curindent, source)
             if sigil in ("%", "#", ".")
                 parse_tag_stanza!(code, indent, source)
             elseif sigil == "-"
-                @assert @capture source r"\h*(?<rest_of_line>.*)$\v?"m
-                if startswith(rest_of_line, r"\h*(?:for|if|while)")
-                    block = parse(rest_of_line * "\nend")
+                @assert @capture source r"""
+                    \h*
+                    (?<code_to_parse>
+                        (?:.*|,\h*\v)*
+                    )$\v?
+                """mx
+                if startswith(code_to_parse, r"\h*(?:for|if|while)")
+                    block = parse(code_to_parse * "\nend")
                     block.args[1] = esc(block.args[1])
                     push!(code.args, block)
                     parse_indented_block!(block.args[2], indent, source)
                     controlflow_this = block
-                elseif !isnothing(match(r"\A\h*else\h*\z", rest_of_line))
+                elseif !isnothing(match(r"\A\h*else\h*\z", code_to_parse))
                     block = quote end
                     push!(controlflow_prev.args, block)
                     parse_indented_block!(block, indent, source)
                 else
-                    expr = parse(rest_of_line)
+                    expr = parse(code_to_parse)
                     push!(code.args, esc(expr))
                 end
             elseif sigil == "="
-                expr, offset = parse(source[], 1, greedy=false)
-                advance!(source, offset - 1)
-                @assert @capture source r"\h*$(?<nl>\v*)"m
+                @assert @capture source r"""
+                    \h*
+                    (?<code_to_parse>
+                        (?:.*|,\h*\v)*
+                    )
+                    $(?<nl>\v?)
+                """mx
+                expr = parse(code_to_parse)
                 push!(code.args, quote
                     write(io, $indent)
                     let val = $(esc(expr))

@@ -151,15 +151,15 @@ end
           %= i
         """
 
-#        @expandsto """
-#          <div>3</div>
-#          <div>2</div>
-#          <div>1</div>
-#        """ haml"""
-#        - list = collect(1:3)
-#        - while !isempty(list)
-#          %= pop!(list)
-#         """
+        @expandsto """
+          <div>3</div>
+          <div>2</div>
+          <div>1</div>
+        """ haml"""
+        - list = collect(1:3)
+        - while !isempty(list)
+          %= pop!(list)
+        """
 
         @expandsto """
           <p>All else follows</p>
