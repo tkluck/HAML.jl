@@ -75,7 +75,7 @@ function writeattributes(io, attributes)
     end
 end
 
-function parse_tag_stanza!(code, curindent, source)
+function parse_tag_stanza!(code, curindent, source; esc=Base.esc)
     @assert @capture source r"(?:%(?<tagname>[A-Z-a-z0-9]+)?)?"
     tagname = something(tagname, "div")
 
@@ -148,7 +148,7 @@ function parse_tag_stanza!(code, curindent, source)
     end
 
     body = quote end
-    haveblock = parse_indented_block!(body, curindent, source)
+    haveblock = parse_indented_block!(body, curindent, source, esc=esc)
     if !isnothing(closingslash)
         @assert isnothing(code_for_inline_val)
         push!(block, quote
@@ -177,7 +177,7 @@ function parse_tag_stanza!(code, curindent, source)
 end
 
 
-function parse_indented_block!(code, curindent, source)
+function parse_indented_block!(code, curindent, source; esc=Base.esc)
     parsed_something = false
 
     controlflow_this = nothing
@@ -196,7 +196,7 @@ function parse_indented_block!(code, curindent, source)
             parsed_something = true
 
             if sigil in ("%", "#", ".")
-                parse_tag_stanza!(code, indent, source)
+                parse_tag_stanza!(code, indent, source, esc=esc)
             elseif sigil == "-"
                 @assert @capture source r"""
                     \h*
@@ -208,12 +208,12 @@ function parse_indented_block!(code, curindent, source)
                     block = parse(code_to_parse * "\nend")
                     block.args[1] = esc(block.args[1])
                     push!(code.args, block)
-                    parse_indented_block!(block.args[2], indent, source)
+                    parse_indented_block!(block.args[2], indent, source, esc=esc)
                     controlflow_this = block
                 elseif !isnothing(match(r"\A\h*else\h*\z", code_to_parse))
                     block = quote end
                     push!(controlflow_prev.args, block)
-                    parse_indented_block!(block, indent, source)
+                    parse_indented_block!(block, indent, source, esc=esc)
                 else
                     expr = parse(code_to_parse)
                     push!(code.args, esc(expr))
@@ -249,9 +249,9 @@ function parse_indented_block!(code, curindent, source)
     return parsed_something
 end
 
-function generate_haml_writer_codeblock(source)
+function generate_haml_writer_codeblock(source; esc=Base.esc)
     code = quote end
-    parse_indented_block!(code, nothing, Ref(source))
+    parse_indented_block!(code, nothing, Ref(source), esc=esc)
     return code
 end
 
@@ -271,7 +271,26 @@ macro haml_str(source)
     end
 end
 
+function replace_quote_references(expr, repl)
+    !(expr isa Expr) && return expr
+    if expr.head == :$ && length(expr.args) == 1 && expr.args[1] isa Symbol
+        return repl(expr.args[1])
+    else
+        return Expr(expr.head, map(a -> replace_quote_references(a, repl), expr.args)...)
+    end
+end
 
-export @haml_str, @hamlwriter_str
+@generated function renderer(::Val{filename}, io; variables...) where filename
+    source = read(string(filename), String)
+    code = generate_haml_writer_codeblock(source, esc=identity)
+    code= replace_quote_references(code, sym -> :( variables.data.$sym ))
+    code
+end
+
+function render(io::IO, filename::AbstractString; kwds...)
+    renderer(Val(Symbol(filename)), io; kwds.data.variables...)
+end
+
+export @haml_str, @hamlwriter_str, render
 
 end # module

@@ -1,0 +1,8 @@
+%html
+  %head
+    %title The Hitchhiker's guide to the galaxy
+  %body
+    %h1 What's the question?
+    %p= $question
+    %h2 What's the answer?
+    %p= $answer

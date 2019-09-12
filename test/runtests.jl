@@ -176,4 +176,28 @@ end
           %p I love Big Brother
         """
     end
+
+    @testset "File format" begin
+        let io = IOBuffer()
+            render(io, joinpath(@__DIR__, "hamljl", "hitchhiker.hamljl"),
+                variables = (
+                    question = "What's the answer to life, the universe, and everything?",
+                    answer = "42",
+                ),
+            )
+            @test """
+            <html>
+              <head>
+                <title>The Hitchhiker's guide to the galaxy</title>
+              </head>
+              <body>
+                <h1>What's the question?</h1>
+                <p>What&#39;s the answer to life, the universe, and everything?</p>
+                <h2>What's the answer?</h2>
+                <p>42</p>
+              </body>
+            </html>
+            """ == String(take!(io))
+        end
+    end
 end
