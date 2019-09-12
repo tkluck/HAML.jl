@@ -34,24 +34,44 @@ end
 indentlength(s) = mapreduce(c -> c == '\t' ? 8 : 1, +, s, init=0)
 indentlength(::Nothing) = -1
 
-function joinattributes(io, attributes)
+function makeattr(name, val)
     ignore(x) = isnothing(x) || x === false
-    for (name, values) in pairs(attributes)
-        if any(!ignore, values)
-            write(io, " ", name, "='")
-            if name == :class
-                join(io, filter(!ignore, values), " ")
-            elseif name == :id
-                join(io, filter(!ignore, values), "_")
-            elseif length(values) == 1 && values[1] === true
-                # selected='selected'
-                write(io, name)
-            else
-                ix = findlast(!ignore, values)
-                htmlesc(io, string(values[ix]))
-            end
-            write(io, "'")
-        end
+    val = filter(!ignore, [val;])
+    isempty(val) && return (false, nothing, nothing)
+
+    if name == :class
+        value = join(val, " ")
+    elseif name == :id
+        value = join(val, "-")
+    else
+        ix = findlast(!ignore, val)
+        value = val[ix]
+    end
+    if value === true
+        valuerepr = string(name)
+    else
+        valuerepr = string(value)
+    end
+    namerepr = replace(string(name), "_" => "-")
+    return (true, htmlesc(namerepr), htmlesc(valuerepr))
+end
+
+join_attr_name(x...) = Symbol(join(x, "-"))
+recurse_attributes(x, path...) = (join_attr_name(path...) => x,)
+recurse_attributes(x::Pair, path...) = recurse_attributes(x[2], path..., x[1])
+recurse_attributes(x::Union{NamedTuple,AbstractDict}, path...) = (attr for pair in pairs(x) for attr in recurse_attributes(pair, path...))
+recurse_attributes(x::AbstractVector, path...) = (attr for pair in x for attr in recurse_attributes(pair, path...))
+
+function writeattributes(io, attributes)
+    collected_attributes = OrderedDict()
+    for (name, value) in recurse_attributes(attributes)
+        a = get!(Vector, collected_attributes, name)
+        append!(a, [value;])
+    end
+    for (name, value) in pairs(collected_attributes)
+        (valid, name, value) = makeattr(name, value)
+        valid || continue
+        write(io, " ", name, "='", value, "'")
     end
 end
 
@@ -59,7 +79,7 @@ function parse_tag_stanza!(code, curindent, source)
     @assert @capture source r"(?:%(?<tagname>[A-Z-a-z0-9]+)?)?"
     tagname = something(tagname, "div")
 
-    let_block = :( let attributes = OrderedDict(); end )
+    let_block = :( let attributes = []; end )
     push!(code.args, let_block)
     block = let_block.args[2].args
     while @capture source r"""
@@ -79,21 +99,18 @@ function parse_tag_stanza!(code, curindent, source)
             push!(block, quote
                 let attributes_tuple = $(esc(attributes_tuple_expr))
                     for (attr, value) in pairs(attributes_tuple)
-                        a = get!(Vector, attributes, attr)
-                        append!(a, [value;])
+                        push!(attributes, attr => value)
                     end
                 end
             end)
         else
             if sigil == "."
                 push!(block, quote
-                    a = get!(Vector, attributes, :class)
-                    push!(a, $value)
+                    push!(attributes, :class => $value)
                 end)
             elseif sigil == "#"
                 push!(block, quote
-                    a = get!(Vector, attributes, :id)
-                    push!(a, $value)
+                    push!(attributes, :id => $value)
                 end)
             else
                 error("Unknown sigil: $sigil")
@@ -136,14 +153,14 @@ function parse_tag_stanza!(code, curindent, source)
         @assert isnothing(code_for_inline_val)
         push!(block, quote
             write(io, $"$curindent<$tagname")
-            joinattributes(io, attributes)
+            writeattributes(io, attributes)
             write(io, $" />$nl")
         end)
     elseif haveblock
         @assert isnothing(code_for_inline_val)
         push!(block, quote
             write(io, $"$curindent<$tagname")
-            joinattributes(io, attributes)
+            writeattributes(io, attributes)
             write(io, ">\n")
             $body
             write(io, $"$curindent</$tagname>$nl")
@@ -151,7 +168,7 @@ function parse_tag_stanza!(code, curindent, source)
     else
         push!(block, quote
             write(io, $"$curindent<$tagname")
-            joinattributes(io, attributes)
+            writeattributes(io, attributes)
             write(io, ">")
             $code_for_inline_val
             write(io, $"</$tagname>$nl")

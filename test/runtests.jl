@@ -91,6 +91,12 @@ end
         end
 
         @expandsto """
+        <a href='/posts' data-author-id='123' data-category='7'>Posts By Author</a>
+        """ haml"""
+        %a(href="/posts", data=(author_id=123, category=7)) Posts By Author
+        """
+
+        @expandsto """
         <input selected='selected' />
         """ haml"""
         %input(selected=true)/
