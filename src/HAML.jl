@@ -35,7 +35,6 @@ indentlength(s) = mapreduce(c -> c == '\t' ? 8 : 1, +, s, init=0)
 indentlength(::Nothing) = -1
 
 function joinattributes(io, attributes)
-    # TODO: escaping!
     ignore(x) = isnothing(x) || x === false
     for (name, values) in pairs(attributes)
         if any(!ignore, values)
