@@ -147,6 +147,22 @@ end
             """
         end
     end
+    @testset "Hygiene w.r.t. internal variables" begin
+        @expandsto """
+          <p>1</p>
+          <p>2</p>
+        """ haml"""
+        - for io in 1:2
+          %p= io
+        """
+        @expandsto """
+          <p>1</p>
+          <p>2</p>
+        """ haml"""
+        - for writeattributes in 1:2
+          %p= writeattributes
+        """
+    end
     @testset "Control flow" begin
         @expandsto """
           <div>1</div>
@@ -197,6 +213,18 @@ end
                 <p>42</p>
               </body>
             </html>
+            """ == String(take!(io))
+        end
+        let io = IOBuffer()
+            render(io, joinpath(@__DIR__, "hamljl", "form.hamljl"),
+                variables = (),
+            )
+            @test """
+            <form>
+              <p>Here's a little button:</p>
+              <button onclick='javascript:alert&#40;Thank you for clicking&#41;'>Click me</button>
+              <p>Did you see the little button?</p>
+            </form>
             """ == String(take!(io))
         end
     end

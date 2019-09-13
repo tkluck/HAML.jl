@@ -1,0 +1,4 @@
+%form
+  %p Here's a little button:
+  :include("alittlebutton.hamljl", label="Click me", alert="Thank you for clicking")
+  %p Did you see the little button?

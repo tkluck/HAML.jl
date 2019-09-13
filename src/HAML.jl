@@ -5,6 +5,8 @@ import Base.Meta: parse
 import DataStructures: OrderedDict
 import Markdown: htmlesc
 
+include("Templates.jl")
+
 advance!(s, delta) = s[] = SubString(s[], delta + 1)
 
 macro capture(haystack, needle)
@@ -75,7 +77,7 @@ function writeattributes(io, attributes)
     end
 end
 
-function parse_tag_stanza!(code, curindent, source; esc=Base.esc)
+function parse_tag_stanza!(code, curindent, source; outerindent=outerindent, esc=Base.esc, io=io)
     @assert @capture source r"(?:%(?<tagname>[A-Z-a-z0-9]+)?)?"
     tagname = something(tagname, "div")
 
@@ -139,45 +141,45 @@ function parse_tag_stanza!(code, curindent, source; esc=Base.esc)
         """mx
         expr = parse(code_to_parse)
         code_for_inline_val = :( let val = $(esc(expr))
-            htmlesc(io, string(val))
+            htmlesc($io, string(val))
         end )
     elseif !isnothing(rest_of_line)
         code_for_inline_val = quote
-            write(io, $rest_of_line)
+            write($io, $rest_of_line)
         end
     end
 
     body = quote end
-    haveblock = parse_indented_block!(body, curindent, source, esc=esc)
+    haveblock = parse_indented_block!(body, curindent, source, outerindent=outerindent, esc=esc, io=io)
     if !isnothing(closingslash)
         @assert isnothing(code_for_inline_val)
         push!(block, quote
-            write(io, $"$curindent<$tagname")
-            writeattributes(io, attributes)
-            write(io, $" />$nl")
+            write($io, $"$outerindent$curindent<$tagname")
+            writeattributes($io, attributes)
+            write($io, $" />$nl")
         end)
     elseif haveblock
         @assert isnothing(code_for_inline_val)
         push!(block, quote
-            write(io, $"$curindent<$tagname")
-            writeattributes(io, attributes)
-            write(io, ">\n")
+            write($io, $"$outerindent$curindent<$tagname")
+            writeattributes($io, attributes)
+            write($io, ">\n")
             $body
-            write(io, $"$curindent</$tagname>$nl")
+            write($io, $"$outerindent$curindent</$tagname>$nl")
         end)
     else
         push!(block, quote
-            write(io, $"$curindent<$tagname")
-            writeattributes(io, attributes)
-            write(io, ">")
+            write($io, $"$outerindent$curindent<$tagname")
+            writeattributes($io, attributes)
+            write($io, ">")
             $code_for_inline_val
-            write(io, $"</$tagname>$nl")
+            write($io, $"</$tagname>$nl")
         end)
     end
 end
 
 
-function parse_indented_block!(code, curindent, source; esc=Base.esc)
+function parse_indented_block!(code, curindent, source; outerindent="", esc=Base.esc, io=:io)
     parsed_something = false
 
     controlflow_this = nothing
@@ -189,14 +191,14 @@ function parse_indented_block!(code, curindent, source; esc=Base.esc)
          end
         if @capture source r"""
             ^
-            (?<indent>\h*)                # indentation
-            (?=(?<sigil>%|\#|\.|-|=|\\))? # stanza type
-            (?:-|=|\\)?                   # consume these stanza types
+            (?<indent>\h*)                  # indentation
+            (?=(?<sigil>%|\#|\.|-|=|\\|:))? # stanza type
+            (?:-|=|\\|:)?                   # consume these stanza types
         """xm
             parsed_something = true
 
             if sigil in ("%", "#", ".")
-                parse_tag_stanza!(code, indent, source, esc=esc)
+                parse_tag_stanza!(code, indent, source, outerindent=outerindent, esc=esc, io=io)
             elseif sigil == "-"
                 @assert @capture source r"""
                     \h*
@@ -208,12 +210,12 @@ function parse_indented_block!(code, curindent, source; esc=Base.esc)
                     block = parse(code_to_parse * "\nend")
                     block.args[1] = esc(block.args[1])
                     push!(code.args, block)
-                    parse_indented_block!(block.args[2], indent, source, esc=esc)
+                    parse_indented_block!(block.args[2], indent, source, outerindent=outerindent, esc=esc, io=io)
                     controlflow_this = block
                 elseif !isnothing(match(r"\A\h*else\h*\z", code_to_parse))
                     block = quote end
                     push!(controlflow_prev.args, block)
-                    parse_indented_block!(block, indent, source, esc=esc)
+                    parse_indented_block!(block, indent, source, outerindent=outerindent, esc=esc, io=io)
                 else
                     expr = parse(code_to_parse)
                     push!(code.args, esc(expr))
@@ -228,17 +230,27 @@ function parse_indented_block!(code, curindent, source; esc=Base.esc)
                 """mx
                 expr = parse(code_to_parse)
                 push!(code.args, quote
-                    write(io, $indent)
+                    write($io, $indent)
                     let val = $(esc(expr))
-                        htmlesc(io, string(val))
+                        htmlesc($io, string(val))
                     end
-                    write(io, $nl)
+                    write($io, $nl)
                 end)
             elseif sigil == "\\" || sigil == nothing
                 @assert @capture source r"\h*(?<rest_of_line>.*)$(?<nl>\v*)"m
                 push!(code.args, quote
-                    write(io, $indent, $rest_of_line, $nl)
+                    write($io, $indent, $rest_of_line, $nl)
                 end)
+            elseif sigil == ":"
+                filter_expr, offset = parse(source[], 1, greedy=true)
+                advance!(source, offset - 1)
+                if filter_expr isa Expr && filter_expr.head == :call && filter_expr.args[1] == :include
+                    push!(code.args, quote
+                        $(esc(:hamlfilter))($io, Val(:include), Val(Symbol($(outerindent * indent))), $(filter_expr.args[2:end]...))
+                    end)
+                else
+                    error("Unrecognized filter: $filter_expr")
+                end
             else
                 error("Unrecognized sigil: $sigil")
             end
@@ -249,17 +261,14 @@ function parse_indented_block!(code, curindent, source; esc=Base.esc)
     return parsed_something
 end
 
-function generate_haml_writer_codeblock(source; esc=Base.esc)
+function generate_haml_writer_codeblock(source; outerindent="", esc=Base.esc, io=:io)
     code = quote end
-    parse_indented_block!(code, nothing, Ref(source), esc=esc)
+    parse_indented_block!(code, nothing, Ref(source), outerindent=outerindent, esc=esc, io=io)
     return code
 end
 
-macro hamlwriter_str(source)
-    code = generate_haml_writer_codeblock(source)
-    return :( function(io)
-        $code
-    end )
+macro _haml(io, outerindent, source)
+    generate_haml_writer_codeblock(source, outerindent=outerindent, io=esc(io))
 end
 
 macro haml_str(source)
@@ -271,25 +280,7 @@ macro haml_str(source)
     end
 end
 
-function replace_quote_references(expr, repl)
-    !(expr isa Expr) && return expr
-    if expr.head == :$ && length(expr.args) == 1 && expr.args[1] isa Symbol
-        return repl(expr.args[1])
-    else
-        return Expr(expr.head, map(a -> replace_quote_references(a, repl), expr.args)...)
-    end
-end
-
-@generated function renderer(::Val{filename}, io; variables...) where filename
-    source = read(string(filename), String)
-    code = generate_haml_writer_codeblock(source, esc=identity)
-    code= replace_quote_references(code, sym -> :( variables.data.$sym ))
-    code
-end
-
-function render(io::IO, filename::AbstractString; kwds...)
-    renderer(Val(Symbol(filename)), io; kwds.data.variables...)
-end
+import .Templates: render
 
 export @haml_str, @hamlwriter_str, render
 
