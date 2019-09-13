@@ -12,7 +12,7 @@ include("Templates.jl")
 advance!(s, delta) = s[] = SubString(s[], delta + 1)
 
 macro capture(haystack, needle)
-    r = r"\A" * eval(needle)
+    r = eval(needle)
     captures = Base.PCRE.capture_names(r.regex)
     if !isempty(captures)
         maxix = maximum(keys(captures))
@@ -21,7 +21,7 @@ macro capture(haystack, needle)
             esc(Symbol(capturename))
         end
         return quote
-            m = match($r, $(esc(haystack))[])
+            m = match($r, $(esc(haystack))[], 1, Base.PCRE.ANCHORED)
             if isnothing(m)
                 false
             else
@@ -31,7 +31,7 @@ macro capture(haystack, needle)
             end
         end
     else
-        return :( !isnothing(match($r, $(esc(haystack))[])) )
+        return :( !isnothing(match($r, $(esc(haystack))[], 1, Base.PCRE.ANCHORED)) )
     end
 end
 
