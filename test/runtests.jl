@@ -149,18 +149,22 @@ end
     end
     @testset "Hygiene w.r.t. internal variables" begin
         @expandsto """
-          <p>1</p>
-          <p>2</p>
+        <p>42</p>
         """ haml"""
-        - for io in 1:2
-          %p= io
+        - io = 42
+        %p= io
         """
         @expandsto """
-          <p>1</p>
-          <p>2</p>
+        <p>42</p>
         """ haml"""
-        - for writeattributes in 1:2
-          %p= writeattributes
+        - writeattributes = 42
+        %p= writeattributes
+        """
+        @expandsto """
+        <p>42</p>
+        """ haml"""
+        - writehaml = 42
+        %p= writehaml
         """
     end
     @testset "Control flow" begin
