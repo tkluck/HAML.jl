@@ -1,9 +1,11 @@
 module HAML
 
-import Base.Meta: parse
+import Base.Meta: parse, quot
 
 import DataStructures: OrderedDict
 import Markdown: htmlesc
+
+function hamlfilter end
 
 include("Templates.jl")
 
@@ -32,6 +34,16 @@ macro capture(haystack, needle)
         return :( !isnothing(match($r, $(esc(haystack))[])) )
     end
 end
+
+function replace_interpolations(f, expr)
+    !(expr isa Expr) && return expr
+    if expr.head == :$ && length(expr.args) == 1 && expr.args[1] isa Symbol
+        return f(expr.args[1])
+    else
+        return Expr(expr.head, map(a -> replace_interpolations(f, a), expr.args)...)
+    end
+end
+
 
 indentlength(s) = mapreduce(c -> c == '\t' ? 8 : 1, +, s, init=0)
 indentlength(::Nothing) = -1
@@ -77,7 +89,7 @@ function writeattributes(io, attributes)
     end
 end
 
-function parse_tag_stanza!(code, curindent, source; outerindent=outerindent, esc=Base.esc, io=io)
+function parse_tag_stanza!(code, curindent, source; outerindent, io, esc, dir)
     @assert @capture source r"(?:%(?<tagname>[A-Z-a-z0-9]+)?)?"
     tagname = something(tagname, "div")
 
@@ -150,7 +162,7 @@ function parse_tag_stanza!(code, curindent, source; outerindent=outerindent, esc
     end
 
     body = quote end
-    haveblock = parse_indented_block!(body, curindent, source, outerindent=outerindent, esc=esc, io=io)
+    haveblock = parse_indented_block!(body, curindent, source, outerindent=outerindent, io=io, esc=esc, dir=dir)
     if !isnothing(closingslash)
         @assert isnothing(code_for_inline_val)
         push!(block, quote
@@ -179,7 +191,7 @@ function parse_tag_stanza!(code, curindent, source; outerindent=outerindent, esc
 end
 
 
-function parse_indented_block!(code, curindent, source; outerindent="", esc=Base.esc, io=:io)
+function parse_indented_block!(code, curindent, source; outerindent="", io, esc, dir)
     parsed_something = false
 
     controlflow_this = nothing
@@ -198,7 +210,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", esc=Base
             parsed_something = true
 
             if sigil in ("%", "#", ".")
-                parse_tag_stanza!(code, indent, source, outerindent=outerindent, esc=esc, io=io)
+                parse_tag_stanza!(code, indent, source, outerindent=outerindent, io=io, esc=esc, dir=dir)
             elseif sigil == "-"
                 @assert @capture source r"""
                     \h*
@@ -210,12 +222,12 @@ function parse_indented_block!(code, curindent, source; outerindent="", esc=Base
                     block = parse(code_to_parse * "\nend")
                     block.args[1] = esc(block.args[1])
                     push!(code.args, block)
-                    parse_indented_block!(block.args[2], indent, source, outerindent=outerindent, esc=esc, io=io)
+                    parse_indented_block!(block.args[2], indent, source, outerindent=outerindent, io=io, esc=esc, dir=dir)
                     controlflow_this = block
                 elseif !isnothing(match(r"\A\h*else\h*\z", code_to_parse))
                     block = quote end
                     push!(controlflow_prev.args, block)
-                    parse_indented_block!(block, indent, source, outerindent=outerindent, esc=esc, io=io)
+                    parse_indented_block!(block, indent, source, outerindent=outerindent, io=io, esc=esc, dir=dir)
                 else
                     expr = parse(code_to_parse)
                     push!(code.args, esc(expr))
@@ -244,9 +256,9 @@ function parse_indented_block!(code, curindent, source; outerindent="", esc=Base
             elseif sigil == ":"
                 filter_expr, offset = parse(source[], 1, greedy=true)
                 advance!(source, offset - 1)
-                if filter_expr isa Expr && filter_expr.head == :call && filter_expr.args[1] == :include
+                if filter_expr isa Expr && filter_expr.head == :call
                     push!(code.args, quote
-                        $(esc(:hamlfilter))($io, Val(:include), Val(Symbol($(outerindent * indent))), $(filter_expr.args[2:end]...))
+                        hamlfilter(Val($(quot(filter_expr.args[1]))), $io, $dir, Val(Symbol($(outerindent * indent))), $(filter_expr.args[2:end]...))
                     end)
                 else
                     error("Unrecognized filter: $filter_expr")
@@ -261,18 +273,30 @@ function parse_indented_block!(code, curindent, source; outerindent="", esc=Base
     return parsed_something
 end
 
-function generate_haml_writer_codeblock(source; outerindent="", esc=Base.esc, io=:io)
+function generate_haml_writer_codeblock(source; outerindent="", io, esc, interp, dir)
     code = quote end
-    parse_indented_block!(code, nothing, Ref(source), outerindent=outerindent, esc=esc, io=io)
+    transform_user_code(expr) = esc(replace_interpolations(interp, expr))
+    parse_indented_block!(code, nothing, Ref(source), outerindent=outerindent, io=io, esc=transform_user_code, dir=dir)
     return code
 end
 
-macro _haml(io, outerindent, source)
-    generate_haml_writer_codeblock(source, outerindent=outerindent, io=esc(io))
+macro _haml(io, outerindent, variables, dir, source)
+    generate_haml_writer_codeblock(source, outerindent=outerindent, io=esc(io), esc=identity, interp=sym -> :( $(esc(variables)).data.$sym ), dir=dir)
 end
 
 macro haml_str(source)
-    code = generate_haml_writer_codeblock(source)
+    if isnothing(__source__.file)
+        rootdir = pwd()
+    else
+        rootdir = dirname(String(__source__.file))
+        if isempty(rootdir)
+            rootdir = pwd()
+        end
+    end
+    dirfd = ccall(:open, RawFD, (Cstring, Int32), rootdir, 0)
+    reinterpret(Int32, dirfd) < 0 && error("Couldn't open $rootdir")
+
+    code = generate_haml_writer_codeblock(source, io=:io, esc=Base.esc, interp=identity, dir=dirfd)
     quote
         io = IOBuffer()
         $code

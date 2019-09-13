@@ -198,7 +198,34 @@ end
     end
 
     @testset "File format" begin
-        let io = IOBuffer()
+
+        @expandsto """
+        <html>
+          <head>
+            <title>The Hitchhiker's guide to the galaxy</title>
+          </head>
+          <body>
+            <h1>What's the question?</h1>
+            <p>What&#39;s the answer to life, the universe, and everything?</p>
+            <h2>What's the answer?</h2>
+            <p>42</p>
+          </body>
+        </html>
+        """ haml"""
+        :include("hamljl/hitchhiker.hamljl", question = "What's the answer to life, the universe, and everything?", answer = 42)
+        """
+
+        @expandsto """
+        <form>
+          <p>Here's a little button:</p>
+          <button onclick='javascript:alert&#40;Thank you for clicking&#41;'>Click me</button>
+          <p>Did you see the little button?</p>
+        </form>
+        """ haml"""
+        :include("hamljl/form.hamljl")
+        """
+
+        let io = IOBuffer()  # test the render(...) entrypoint
             render(io, joinpath(@__DIR__, "hamljl", "hitchhiker.hamljl"),
                 variables = (
                     question = "What's the answer to life, the universe, and everything?",
@@ -217,18 +244,6 @@ end
                 <p>42</p>
               </body>
             </html>
-            """ == String(take!(io))
-        end
-        let io = IOBuffer()
-            render(io, joinpath(@__DIR__, "hamljl", "form.hamljl"),
-                variables = (),
-            )
-            @test """
-            <form>
-              <p>Here's a little button:</p>
-              <button onclick='javascript:alert&#40;Thank you for clicking&#41;'>Click me</button>
-              <p>Did you see the little button?</p>
-            </form>
             """ == String(take!(io))
         end
     end

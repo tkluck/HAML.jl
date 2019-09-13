@@ -1,14 +1,23 @@
 module Templates
 
 import HAML
+import HAML: hamlfilter
 
 struct FileRevision{INode, MTime} end
 
-const open_fds = Dict()
+function openat_raw(dir::RawFD, filename::AbstractString)
+    fdesc = ccall(:openat, RawFD, (RawFD, Cstring, Int32), dir, filename, 0)
+    reinterpret(Int32, fdesc) < 0 && error("Couldn't open $filename")
+    return fdesc
+end
+
+openat(dir, filename) = open(openat_raw(dir, filename))
+
+const open_files = Dict()
+const friendlynames = Dict()
 
 function Base.open(fr::FileRevision)
-    fd = get!(() -> error("Compiling render function when fd has been closed already!"), open_fds, fr)
-    io = open(fd)
+    io = get!(() -> error("Compiling render function when fd has been closed already!"), open_files, fr)
     seek(io, 0)
     return io
 end
@@ -17,39 +26,32 @@ module Generated end
 
 function render end
 
-function replace_quote_references(expr, repl)
-    !(expr isa Expr) && return expr
-    if expr.head == :$ && length(expr.args) == 1 && expr.args[1] isa Symbol
-        return repl(expr.args[1])
-    else
-        return Expr(expr.head, map(a -> replace_quote_references(a, repl), expr.args)...)
+function hamlfilter(::Val{:include}, io::IO, dir::RawFD, indent, filename; variables...)
+    relpath, base_name = dirname(filename), basename(filename)
+    if !isempty(relpath)
+        dir = openat_raw(dir, relpath)
     end
+    render(io, base_name, dir; indent=indent, variables=variables.data)
 end
 
+
 module_template(dirfd) = quote
-    function hamlfilter(io::IO, ::Val{:include}, indent, filename; variables...)
-        $render(io, filename, $dirfd; indent=indent, variables=variables.data)
-    end
     @generated function writehaml(io::IO, ::FR, ::Val{indent}; variables...) where FR <: $FileRevision where indent
         source = read(open(FR()), String)
-        code = macroexpand($HAML, :( @_haml io $(string(indent)) $source ))
-        code = $replace_quote_references(code, sym -> :( variables.data.$sym ))
+        code = macroexpand($HAML, :( @_haml(io, $(string(indent)), variables, $($dirfd), $source) ))
         return code
     end
 end
 
 function getmodule(dir::RawFD)
-    st = stat(dir)
-    if !iszero(st.inode)
-        name = Symbol("Dev$(st.device)INode$(st.inode)")
-        try
-            return getproperty(Generated, name)
-        catch
-            Base.eval(Generated, :( module $name $(module_template(dir)) end ))
-            return getproperty(Generated, name)
-        end
-    else
-        error("Cannot read directory information")
+    friendly = get!(() -> "", friendlynames, dir)
+    num = reinterpret(Int32, dir)
+    name = Symbol("FD$(num)_$(friendly)")
+    try
+        return getproperty(Generated, name)
+    catch
+        Base.eval(Generated, :( module $name $(module_template(dir)) end ))
+        return getproperty(Generated, name)
     end
 end
 
@@ -63,31 +65,30 @@ function FileRevision(file)
 end
 
 function render(io::IO, filename::AbstractString, dir::RawFD; indent=Val(Symbol("")), variables=())
-
-
-    fd = ccall(:openat, RawFD, (RawFD, Cstring, Int32), dir, filename, 0)
-    fr = FileRevision(fd)
-    open_fds[fr] = fd
+    file = openat(dir, filename)
+    fr = FileRevision(file)
+    open_files[fr] = file
     try
         fn = getproperty(getmodule(dir), :writehaml)
         return Base.invokelatest(fn, io, fr, indent; variables...)
     finally
-        delete!(open_fds, fr)
-        ccall(:close, Int, (RawFD,), fd)
+        delete!(open_files, fr)
+        close(file)
     end
+end
+
+function render(io, filename::AbstractString, dirname::AbstractString; kwds...)
+    dir = open(dirname)
+    dir = ccall(:open, RawFD, (Cstring, Int32), dirname, 0)
+    reinterpret(Int32, dir) < 0 && error("Couldn't open $dirname")
+    friendlynames[dir] = dirname
+    return render(io, filename, dir; kwds...)
 end
 
 function render(io::IO, path::AbstractString; kwds...)
     dir_name, base_name = dirname(path), basename(path)
 
-    file, dir = nothing, nothing
-    cd(dir_name) do
-        # TODO: handle errors
-        dir = ccall(:open, RawFD, (Cstring, Int32), :., 0)
-    end
-
-    return render(io, base_name, dir; kwds...)
+    return render(io, basename(path), dirname(path); kwds...)
 end
-
 
 end # module
