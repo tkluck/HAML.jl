@@ -17,7 +17,6 @@ function replace_interpolations(f, expr)
     end
 end
 
-
 indentlength(s) = mapreduce(c -> c == '\t' ? 8 : 1, +, s, init=0)
 indentlength(::Nothing) = -1
 
@@ -62,13 +61,23 @@ function writeattributes(io, attributes)
     end
 end
 
+function extendblock!(block, expr)
+    @assert block isa Expr && block.head == :block
+
+    if expr isa Expr && expr.head == :block
+        append!(block.args, expr.args)
+    else
+        push!(block.args, expr)
+    end
+end
+
 function parse_tag_stanza!(code, curindent, source; outerindent, io, esc, dir)
     @assert @capture source r"(?:%(?<tagname>[A-Z-a-z0-9]+)?)?"
     tagname = something(tagname, "div")
 
     let_block = :( let attributes = []; end )
     push!(code.args, let_block)
-    block = let_block.args[2].args
+    block = let_block.args[2]
     while @capture source r"""
         (?=(?<openbracket>\())
         |
@@ -83,7 +92,7 @@ function parse_tag_stanza!(code, curindent, source; outerindent, io, esc, dir)
                 attributes_tuple_expr = :( ($attributes_tuple_expr,) )
             end
             advance!(source, offset - 1)
-            push!(block, quote
+            extendblock!(block, quote
                 let attributes_tuple = $(esc(attributes_tuple_expr))
                     for (attr, value) in pairs(attributes_tuple)
                         push!(attributes, attr => value)
@@ -92,11 +101,11 @@ function parse_tag_stanza!(code, curindent, source; outerindent, io, esc, dir)
             end)
         else
             if sigil == "."
-                push!(block, quote
+                extendblock!(block, quote
                     push!(attributes, :class => $value)
                 end)
             elseif sigil == "#"
-                push!(block, quote
+                extendblock!(block, quote
                     push!(attributes, :id => $value)
                 end)
             else
@@ -138,14 +147,14 @@ function parse_tag_stanza!(code, curindent, source; outerindent, io, esc, dir)
     haveblock = parse_indented_block!(body, curindent, source, outerindent=outerindent, io=io, esc=esc, dir=dir)
     if !isnothing(closingslash)
         @assert isnothing(code_for_inline_val)
-        push!(block, quote
+        extendblock!(block, quote
             write($io, $"$outerindent$curindent<$tagname")
             writeattributes($io, attributes)
             write($io, $" />$nl")
         end)
     elseif haveblock
         @assert isnothing(code_for_inline_val)
-        push!(block, quote
+        extendblock!(block, quote
             write($io, $"$outerindent$curindent<$tagname")
             writeattributes($io, attributes)
             write($io, ">\n")
@@ -153,7 +162,7 @@ function parse_tag_stanza!(code, curindent, source; outerindent, io, esc, dir)
             write($io, $"$outerindent$curindent</$tagname>$nl")
         end)
     else
-        push!(block, quote
+        extendblock!(block, quote
             write($io, $"$outerindent$curindent<$tagname")
             writeattributes($io, attributes)
             write($io, ">")
@@ -194,7 +203,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
                 if startswith(code_to_parse, r"\h*(?:for|if|while)")
                     block = parse(code_to_parse * "\nend")
                     block.args[1] = esc(block.args[1])
-                    push!(code.args, block)
+                    extendblock!(code, block)
                     parse_indented_block!(block.args[2], indent, source, outerindent=outerindent, io=io, esc=esc, dir=dir)
                     controlflow_this = block
                 elseif !isnothing(match(r"\A\h*else\h*\z", code_to_parse))
@@ -203,7 +212,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
                     parse_indented_block!(block, indent, source, outerindent=outerindent, io=io, esc=esc, dir=dir)
                 else
                     expr = parse(code_to_parse)
-                    push!(code.args, esc(expr))
+                    extendblock!(code, esc(expr))
                 end
             elseif sigil == "="
                 @assert @capture source r"""
@@ -214,7 +223,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
                     $(?<nl>\v?)
                 """mx
                 expr = parse(code_to_parse)
-                push!(code.args, quote
+                extendblock!(code, quote
                     write($io, $indent)
                     let val = $(esc(expr))
                         htmlesc($io, string(val))
@@ -223,7 +232,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
                 end)
             elseif sigil == "\\" || sigil == nothing
                 @assert @capture source r"\h*(?<rest_of_line>.*)$(?<nl>\v*)"m
-                push!(code.args, quote
+                extendblock!(code, quote
                     write($io, $indent, $rest_of_line, $nl)
                 end)
             elseif sigil == ":"
@@ -235,7 +244,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
                 """mx
                 filter_expr = parse(code_to_parse)
                 if filter_expr isa Expr && filter_expr.head == :call
-                    push!(code.args, quote
+                    extendblock!(code, quote
                         hamlfilter(Val($(quot(filter_expr.args[1]))), $io, $dir, Val(Symbol($(outerindent * indent))), $(filter_expr.args[2:end]...))
                     end)
                     # TODO: define semantics for collapsing newlines
