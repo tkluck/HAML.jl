@@ -65,8 +65,20 @@ function extendblock!(block, expr)
     @assert block isa Expr && block.head == :block
 
     if expr isa Expr && expr.head == :block
-        append!(block.args, expr.args)
-    else
+        for e in expr.args
+            extendblock!(block, e)
+        end
+        return
+    end
+    if !isempty(block.args) && expr isa Expr
+        prev = block.args[end]
+        if prev isa Expr && prev.head == :call && prev.args[1] == :write && expr.head == :call && expr.args[1] == :write && prev.args[end] isa AbstractString && expr.args[3] isa AbstractString
+            prev.args[end] *= expr.args[3]
+            append!(prev.args, expr.args[4:end])
+            return
+        end
+    end
+    if !(expr isa LineNumberNode)
         push!(block.args, expr)
     end
 end
@@ -233,7 +245,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
             elseif sigil == "\\" || sigil == nothing
                 @assert @capture source r"\h*(?<rest_of_line>.*)$(?<nl>\v*)"m
                 extendblock!(code, quote
-                    write($io, $indent, $rest_of_line, $nl)
+                    write($io, $"$indent$rest_of_line$nl")
                 end)
             elseif sigil == ":"
                 @assert @capture source r"""
