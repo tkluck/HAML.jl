@@ -227,12 +227,21 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
                     write($io, $indent, $rest_of_line, $nl)
                 end)
             elseif sigil == ":"
-                filter_expr, offset = parse(source[], 1, greedy=true)
-                advance!(source, offset - 1)
+                @assert @capture source r"""
+                    (?<code_to_parse>
+                        (?:.*|,\h*\v)*
+                    )
+                    $(?<nl>\v?)
+                """mx
+                filter_expr = parse(code_to_parse)
                 if filter_expr isa Expr && filter_expr.head == :call
                     push!(code.args, quote
                         hamlfilter(Val($(quot(filter_expr.args[1]))), $io, $dir, Val(Symbol($(outerindent * indent))), $(filter_expr.args[2:end]...))
                     end)
+                    # TODO: define semantics for collapsing newlines
+                    #push!(code.args, quote
+                    #    write($io, $nl)
+                    #end)
                 else
                     error("Unrecognized filter: $filter_expr")
                 end
