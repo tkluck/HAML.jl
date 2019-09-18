@@ -166,6 +166,12 @@ end
         - writehaml = 42
         %p= writehaml
         """
+        @expandsto """
+        <p>42</p>
+        """ haml"""
+        - forest = 42 # don't mistake this for a for loop because it starts with for
+        %p= forest
+        """
     end
     @testset "Control flow" begin
         @expandsto """

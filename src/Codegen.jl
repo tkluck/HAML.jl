@@ -212,8 +212,8 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
                         (?:.*|,\h*\v)*
                     )$\v?
                 """mx
-                if startswith(code_to_parse, r"\h*(?:for|if|while)")
-                    block = parse(code_to_parse * "\nend")
+                if startswith(code_to_parse, r"\h*(?:for|if|while)\b")
+                    block = parse("$code_to_parse\nend")
                     block.args[1] = esc(block.args[1])
                     extendblock!(code, block)
                     parse_indented_block!(block.args[2], indent, source, outerindent=outerindent, io=io, esc=esc, dir=dir)
