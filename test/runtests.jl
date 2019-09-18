@@ -184,6 +184,15 @@ end
         """
 
         @expandsto """
+          <div>1</div>
+          <div>2</div>
+          <div>3</div>
+        """ haml"""
+        - map(1:3) do i
+          %= i
+        """
+
+        @expandsto """
           <div>3</div>
           <div>2</div>
           <div>1</div>

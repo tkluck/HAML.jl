@@ -222,6 +222,12 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
                     block = quote end
                     push!(controlflow_prev.args, block)
                     parse_indented_block!(block, indent, source, outerindent=outerindent, io=io, esc=esc, dir=dir)
+                elseif (block = parse("$code_to_parse\nend", raise=false); block isa Expr && block.head == :do)
+                    block.args[1] = esc(block.args[1])
+                    block.args[2].args[1] = esc(block.args[2].args[1])
+                    extendblock!(code, block)
+                    body_of_fun = block.args[2].args[2]
+                    parse_indented_block!(body_of_fun, indent, source, outerindent=outerindent, io=io, esc=esc, dir=dir)
                 else
                     expr = parse(code_to_parse)
                     extendblock!(code, esc(expr))
