@@ -141,7 +141,7 @@ function parse_tag_stanza!(code, curindent, source; outerindent, io, esc, dir)
         @assert @capture source r"""
             \h*
             (?<code_to_parse>
-                (?:.*|,\h*\v)*
+                (?:,\h*(?:\#.*)?\v|.)*
             )
             $(?<nl>\v?)
         """mx
@@ -209,7 +209,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
                 @assert @capture source r"""
                     \h*
                     (?<code_to_parse>
-                        (?:.*|,\h*\v)*
+                        (?:,\h*(?:\#.*)?\v|.)*
                     )$\v?
                 """mx
                 if startswith(code_to_parse, r"\h*(?:for|if|while)\b")

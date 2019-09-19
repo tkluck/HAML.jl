@@ -133,6 +133,21 @@ end
         "
         # no closing newline
         @expandsto "<div class='hello'></div>" haml"%div.hello"
+
+        # a comment after the comma
+        @expandsto """
+        <span a='b' c='d'>Hello everyone!</span>
+          <div>1</div>
+          <div>2</div>
+        """ haml"""
+        %span(a="b", # set a to b
+              c="d") Hello everyone!
+        - array = [1, # the first element
+                   2]
+        - for a in array
+          %= a
+        """
+
     end
     @testset "Escaping" begin
         let motto="Let's get ready"
