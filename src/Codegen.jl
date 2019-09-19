@@ -197,9 +197,9 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
          end
         if @capture source r"""
             ^
-            (?<indent>\h*)                  # indentation
-            (?=(?<sigil>%|\#|\.|-|=|\\|:))? # stanza type
-            (?:-|=|\\|:)?                   # consume these stanza types
+            (?<indent>\h*)                      # indentation
+            (?=(?<sigil>%|\#|\.|-|=|\\|:|!!!))? # stanza type
+            (?:-|=|\\|:|!!!)?                   # consume these stanza types
         """xm
             parsed_something = true
 
@@ -272,6 +272,11 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
                 else
                     error("Unrecognized filter: $filter_expr")
                 end
+            elseif sigil == "!!!"
+                @assert @capture source r"\h*5\h*$(?<nl>\v?)"m
+                extendblock!(code, quote
+                    write($io, $"<!DOCTYPE html>$nl")
+                end)
             else
                 error("Unrecognized sigil: $sigil")
             end

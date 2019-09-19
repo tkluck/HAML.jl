@@ -147,6 +147,13 @@ end
             """
         end
     end
+    @testset "Doctype" begin
+        @expandsto """
+        <!DOCTYPE html>
+        """ haml"""
+        !!! 5
+        """
+    end
     @testset "Hygiene w.r.t. internal variables" begin
         @expandsto """
         <p>42</p>
