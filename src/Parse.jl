@@ -22,6 +22,18 @@ function Base.Meta.parse(s::Source, args...; kwds...)
     expr
 end
 
+function Base.error(s::Source, msg)
+    lines = split(s.text, "\n")
+    source_snippet = join(lines[max(1, s.line-1) : s.line], "\n")
+    point_at_column = " " ^ (s.col - 1) * "^^^ here"
+    message = """
+    $msg at line $(s.line) column $(s.col):
+    $source_snippet
+    $point_at_column
+    """
+    error(message)
+end
+
 function advance!(s::Source, delta)
     for _ in 1:delta
         if s[1] == '\n'
@@ -34,7 +46,7 @@ function advance!(s::Source, delta)
     end
 end
 
-macro capture(haystack, needle)
+function capture(haystack, needle)
     # eval into Main to avoid Revise.jl compaining about eval'ing "into
     # the closed module HAML.Parse".
     r = Base.eval(Main, needle)
@@ -58,6 +70,17 @@ macro capture(haystack, needle)
         end
     else
         return :( !isnothing(match($r, $hay.text, $hay.ix, Base.PCRE.ANCHORED)) )
+    end
+end
+
+macro capture(haystack, needle)
+    return capture(haystack, needle)
+end
+
+macro mustcapture(haystack, msg, needle)
+    return quote
+        succeeded = $(capture(haystack, needle))
+        succeeded || error($(esc(haystack)), $msg)
     end
 end
 

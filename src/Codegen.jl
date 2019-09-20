@@ -6,7 +6,7 @@ import DataStructures: OrderedDict
 import Markdown: htmlesc
 
 import HAML: hamlfilter
-import ..Parse: @capture, Source
+import ..Parse: @capture, @mustcapture, Source
 
 function replace_interpolations(f, expr)
     !(expr isa Expr) && return expr
@@ -84,7 +84,7 @@ function extendblock!(block, expr)
 end
 
 function parse_tag_stanza!(code, curindent, source; outerindent, io, esc, dir)
-    @assert @capture source r"(?:%(?<tagname>[A-Za-z0-9]+)?)?"
+    @mustcapture source "Expecting a tag name" r"(?:%(?<tagname>[A-Za-z0-9]+)?)?"
     tagname = something(tagname, "div")
 
     let_block = :( let attributes = []; end )
@@ -120,12 +120,12 @@ function parse_tag_stanza!(code, curindent, source; outerindent, io, esc, dir)
                     push!(attributes, :id => $value)
                 end)
             else
-                error("Unknown sigil: $sigil")
+                error(source, "Unknown sigil: $sigil")
             end
         end
     end
 
-    @assert @capture source r"""
+    @mustcapture source "Expecting '=', '/', or whitespace" r"""
         (?<equalssign>\=)
         |
         (?<closingslash>/)?
@@ -137,7 +137,7 @@ function parse_tag_stanza!(code, curindent, source; outerindent, io, esc, dir)
 
     code_for_inline_val = nothing
     if !isnothing(equalssign)
-        @assert @capture source r"""
+        @mustcapture source "Expecting an expression" r"""
             \h*
             (?<code_to_parse>
                 (?:,\h*(?:\#.*)?\v|.)*
@@ -205,7 +205,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
             if sigil in ("%", "#", ".")
                 parse_tag_stanza!(code, indent, source, outerindent=outerindent, io=io, esc=esc, dir=dir)
             elseif sigil == "-"
-                @assert @capture source r"""
+                @mustcapture source "Expecting an expression" r"""
                     \h*
                     (?<code_to_parse>
                         (?:,\h*(?:\#.*)?\v|.)*
@@ -232,7 +232,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
                     extendblock!(code, esc(expr))
                 end
             elseif sigil == "="
-                @assert @capture source r"""
+                @mustcapture source "Expecting an expression" r"""
                     \h*
                     (?<code_to_parse>
                         (?:.*|,\h*\v)*
@@ -248,12 +248,12 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
                     write($io, $nl)
                 end)
             elseif sigil == "\\" || sigil == nothing
-                @assert @capture source r"\h*(?<rest_of_line>.*)$(?<nl>\v*)"m
+                @mustcapture source "Expecting literal data" r"\h*(?<rest_of_line>.*)$(?<nl>\v*)"m
                 extendblock!(code, quote
                     write($io, $"$indent$rest_of_line$nl")
                 end)
             elseif sigil == ":"
-                @assert @capture source r"""
+                @mustcapture source "Expecting an expression" r"""
                     (?<code_to_parse>
                         (?:.*|,\h*\v)*
                     )
@@ -269,18 +269,18 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
                     #    write($io, $nl)
                     #end)
                 else
-                    error("Unrecognized filter: $filter_expr")
+                    error(source, "Unrecognized filter: $filter_expr")
                 end
             elseif sigil == "!!!"
-                @assert @capture source r"\h*5\h*$(?<nl>\v?)"m
+                @mustcapture source "Only support '!!! 5'" r"\h*5\h*$(?<nl>\v?)"m
                 extendblock!(code, quote
                     write($io, $"<!DOCTYPE html>$nl")
                 end)
             else
-                error("Unrecognized sigil: $sigil")
+                error(source, "Unrecognized sigil: $sigil")
             end
         else
-            error("Unrecognized")
+            error(source, "Unrecognized")
         end
     end
     return parsed_something
