@@ -6,7 +6,7 @@ import DataStructures: OrderedDict
 import Markdown: htmlesc
 
 import HAML: hamlfilter
-import ..Parse: @capture, advance!
+import ..Parse: @capture, Source
 
 function replace_interpolations(f, expr)
     !(expr isa Expr) && return expr
@@ -99,11 +99,10 @@ function parse_tag_stanza!(code, curindent, source; outerindent, io, esc, dir)
         )
     """x
         if !isnothing(openbracket)
-            attributes_tuple_expr, offset = parse(source[], 1, greedy=false)
+            attributes_tuple_expr = parse(source, greedy=false)
             if attributes_tuple_expr.head == :(=)
                 attributes_tuple_expr = :( ($attributes_tuple_expr,) )
             end
-            advance!(source, offset - 1)
             extendblock!(block, quote
                 let attributes_tuple = $(esc(attributes_tuple_expr))
                     for (attr, value) in pairs(attributes_tuple)
@@ -190,9 +189,9 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
 
     controlflow_this = nothing
     controlflow_prev = nothing
-    while !isempty(source[])
+    while !isempty(source)
         controlflow_this, controlflow_prev = nothing, controlflow_this
-        if indentlength(match(r"\A\h*", source[]).match) <= indentlength(curindent)
+        if indentlength(match(r"\A\h*", source).match) <= indentlength(curindent)
              return parsed_something
          end
         if @capture source r"""
@@ -290,7 +289,7 @@ end
 function generate_haml_writer_codeblock(source; outerindent="", io, esc, interp, dir)
     code = quote end
     transform_user_code(expr) = esc(replace_interpolations(interp, expr))
-    parse_indented_block!(code, nothing, Ref(source), outerindent=outerindent, io=io, esc=transform_user_code, dir=dir)
+    parse_indented_block!(code, nothing, Source(source), outerindent=outerindent, io=io, esc=transform_user_code, dir=dir)
     return code
 end
 

@@ -1,11 +1,44 @@
 module Parse
 
-advance!(s, delta) = s[] = SubString(s[], delta + 1)
+mutable struct Source
+    text :: String
+    ix   :: Int
+    line :: Int
+    col  :: Int
+end
+
+Source(text::String) = Source(text, 1, 1, 1)
+
+Base.getindex(s::Source, ix::Int) = s.text[s.ix + ix - 1]
+Base.getindex(s::Source, ix::AbstractRange) = SubString(s.text, s.ix .+ ix .- 1)
+
+Base.isempty(s::Source) = s.ix > length(s.text)
+
+Base.match(needle::Regex, haystack::Source, args...; kwds...) = match(needle, SubString(haystack.text, haystack.ix), args...; kwds...)
+
+function Base.Meta.parse(s::Source, args...; kwds...)
+    expr, offset = Base.Meta.parse(SubString(s.text, s.ix), 1, args...; kwds...)
+    advance!(s, offset - 1)
+    expr
+end
+
+function advance!(s::Source, delta)
+    for _ in 1:delta
+        if s[1] == '\n'
+            s.line += 1
+            s.col = 1
+        else
+            s.col += 1
+        end
+        s.ix += 1
+    end
+end
 
 macro capture(haystack, needle)
     # eval into Main to avoid Revise.jl compaining about eval'ing "into
     # the closed module HAML.Parse".
     r = Base.eval(Main, needle)
+    hay = esc(haystack)
     captures = Base.PCRE.capture_names(r.regex)
     if !isempty(captures)
         maxix = maximum(keys(captures))
@@ -14,17 +47,17 @@ macro capture(haystack, needle)
             esc(Symbol(capturename))
         end
         return quote
-            m = match($r, $(esc(haystack))[], 1, Base.PCRE.ANCHORED)
+            m = match($r, $hay.text, $hay.ix, Base.PCRE.ANCHORED)
             if isnothing(m)
                 false
             else
                 ($(symbols...),) = m.captures
-                advance!($(esc(haystack)), length(m.match))
+                advance!($hay, length(m.match))
                 true
             end
         end
     else
-        return :( !isnothing(match($r, $(esc(haystack))[], 1, Base.PCRE.ANCHORED)) )
+        return :( !isnothing(match($r, $hay.text, $hay.ix, Base.PCRE.ANCHORED)) )
     end
 end
 
