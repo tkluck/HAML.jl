@@ -84,7 +84,7 @@ function extendblock!(block, expr)
 end
 
 function parse_tag_stanza!(code, curindent, source; outerindent, io, esc, dir)
-    @assert @capture source r"(?:%(?<tagname>[A-Z-a-z0-9]+)?)?"
+    @assert @capture source r"(?:%(?<tagname>[A-Za-z0-9]+)?)?"
     tagname = something(tagname, "div")
 
     let_block = :( let attributes = []; end )
