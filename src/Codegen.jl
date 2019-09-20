@@ -129,8 +129,10 @@ function parse_tag_stanza!(code, curindent, source; outerindent, io, esc, dir)
         (?<equalssign>\=)
         |
         (?<closingslash>/)?
-        \h*
-        (?<rest_of_line>.+)?
+        (?:
+          \h+
+          (?<rest_of_line>.+)
+        )?
         $
         (?<nl>\v*)
     """mx
