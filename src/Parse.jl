@@ -3,11 +3,24 @@ module Parse
 mutable struct Source
     text :: String
     ix   :: Int
-    line :: Int
-    col  :: Int
 end
 
-Source(text::String) = Source(text, 1, 1, 1)
+Source(text::String) = Source(text, 1)
+
+function linecol(s::AbstractString, ix::Int)
+    line, col = 1, 1
+    i = firstindex(s)
+    while i < ix
+        if s[i] == '\n'
+            line += 1
+            col = 1
+        else
+            col += 1
+        end
+        i = nextind(s, i)
+    end
+    return line, col
+end
 
 Base.getindex(s::Source, ix::Int) = s.text[s.ix + ix - 1]
 Base.getindex(s::Source, ix::AbstractRange) = SubString(s.text, s.ix .+ ix .- 1)
@@ -16,18 +29,31 @@ Base.isempty(s::Source) = s.ix > length(s.text)
 
 Base.match(needle::Regex, haystack::Source, args...; kwds...) = match(needle, SubString(haystack.text, haystack.ix), args...; kwds...)
 
-function Base.Meta.parse(s::Source, args...; kwds...)
-    expr, offset = Base.Meta.parse(SubString(s.text, s.ix), 1, args...; kwds...)
-    advance!(s, offset - 1)
+function Base.Meta.parse(s::Source; kwds...)
+    expr, offset = Base.Meta.parse(s.text, s.ix; kwds...)
+    advance!(s, offset - s.ix)
     expr
 end
 
-function Base.error(s::Source, msg)
+function Base.Meta.parse(s::Source, snippet::AbstractString, snippet_location::SubString = snippet; raise=true, kwds...)
+    @assert snippet_location.string == s.text
+    expr = Base.Meta.parse(snippet; raise=false, kwds...)
+    if raise && expr isa Expr && expr.head == :error
+        ix = snippet_location.offset + 1
+        error(s, ix, expr.args[1])
+    end
+    expr
+end
+
+Base.error(s::Source, msg) = error(s, s.ix, msg)
+
+function Base.error(s::Source, ix::Int, msg)
+    line, col = linecol(s.text, ix)
     lines = split(s.text, "\n")
-    source_snippet = join(lines[max(1, s.line-1) : s.line], "\n")
-    point_at_column = " " ^ (s.col - 1) * "^^^ here"
+    source_snippet = join(lines[max(1, line-1) : line], "\n")
+    point_at_column = " " ^ (col - 1) * "^^^ here"
     message = """
-    $msg at line $(s.line) column $(s.col):
+    $msg at line $line column $col:
     $source_snippet
     $point_at_column
     """
@@ -35,15 +61,7 @@ function Base.error(s::Source, msg)
 end
 
 function advance!(s::Source, delta)
-    for _ in 1:delta
-        if s[1] == '\n'
-            s.line += 1
-            s.col = 1
-        else
-            s.col += 1
-        end
-        s.ix += 1
-    end
+    s.ix += delta
 end
 
 function capture(haystack, needle)

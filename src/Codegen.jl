@@ -146,7 +146,7 @@ function parse_tag_stanza!(code, curindent, source; outerindent, io, esc, dir)
             )
             $(?<nl>\v?)
         """mx
-        expr = parse(code_to_parse)
+        expr = parse(source, code_to_parse)
         code_for_inline_val = :( let val = $(esc(expr))
             htmlesc($io, string(val))
         end )
@@ -214,7 +214,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
                     )$\v?
                 """mx
                 if startswith(code_to_parse, r"\h*(?:for|if|while)\b")
-                    block = parse("$code_to_parse\nend")
+                    block = parse(source, "$code_to_parse\nend", code_to_parse)
                     block.args[1] = esc(block.args[1])
                     extendblock!(code, block)
                     parse_indented_block!(block.args[2], indent, source, outerindent=outerindent, io=io, esc=esc, dir=dir)
@@ -223,14 +223,14 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
                     block = quote end
                     push!(controlflow_prev.args, block)
                     parse_indented_block!(block, indent, source, outerindent=outerindent, io=io, esc=esc, dir=dir)
-                elseif (block = parse("$code_to_parse\nend", raise=false); block isa Expr && block.head == :do)
+                elseif (block = parse(source, "$code_to_parse\nend", code_to_parse, raise=false); block isa Expr && block.head == :do)
                     block.args[1] = esc(block.args[1])
                     block.args[2].args[1] = esc(block.args[2].args[1])
                     extendblock!(code, block)
                     body_of_fun = block.args[2].args[2]
                     parse_indented_block!(body_of_fun, indent, source, outerindent=outerindent, io=io, esc=esc, dir=dir)
                 else
-                    expr = parse(code_to_parse)
+                    expr = parse(source, code_to_parse)
                     extendblock!(code, esc(expr))
                 end
             elseif sigil == "="
@@ -241,7 +241,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
                     )
                     $(?<nl>\v?)
                 """mx
-                expr = parse(code_to_parse)
+                expr = parse(source, code_to_parse)
                 extendblock!(code, quote
                     write($io, $indent)
                     let val = $(esc(expr))
@@ -261,7 +261,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
                     )
                     $(?<nl>\v?)
                 """mx
-                filter_expr = parse(code_to_parse)
+                filter_expr = parse(source, code_to_parse)
                 if filter_expr isa Expr && filter_expr.head == :call
                     extendblock!(code, quote
                         hamlfilter(Val($(quot(filter_expr.args[1]))), $io, $dir, Val(Symbol($(outerindent * indent))), $(filter_expr.args[2:end]...))
