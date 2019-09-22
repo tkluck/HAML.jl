@@ -1,25 +1,26 @@
 module Parse
 
 mutable struct Source
-    text :: String
-    ix   :: Int
+    text       :: String
+    __source__ :: LineNumberNode
+    ix         :: Int
 end
 
-Source(text::String) = Source(text, 1)
+Source(text::String, __source__::LineNumberNode=LineNumberNode(-1)) = Source(text, __source__, 1)
 
-function linecol(s::AbstractString, ix::Int)
+function linecol(s::Source, ix::Int=s.ix)
     line, col = 1, 1
-    i = firstindex(s)
+    i = firstindex(s.text)
     while i < ix
-        if s[i] == '\n'
+        if s.text[i] == '\n'
             line += 1
             col = 1
         else
             col += 1
         end
-        i = nextind(s, i)
+        i = nextind(s.text, i)
     end
-    return line, col
+    return line, col, LineNumberNode(line + s.__source__.line - 1, s.__source__.file)
 end
 
 Base.getindex(s::Source, ix::Int) = s.text[s.ix + ix - 1]
@@ -48,12 +49,12 @@ end
 Base.error(s::Source, msg) = error(s, s.ix, msg)
 
 function Base.error(s::Source, ix::Int, msg)
-    line, col = linecol(s.text, ix)
+    line, col, linenode = linecol(s, ix)
     lines = split(s.text, "\n")
     source_snippet = join(lines[max(1, line-1) : line], "\n")
     point_at_column = " " ^ (col - 1) * "^^^ here"
     message = """
-    $msg at line $line column $col:
+    $msg at $(linenode.file):$(linenode.line):
     $source_snippet
     $point_at_column
     """

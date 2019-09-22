@@ -291,12 +291,12 @@ end
 function generate_haml_writer_codeblock(source; outerindent="", io, esc, interp, dir)
     code = quote end
     transform_user_code(expr) = esc(replace_interpolations(interp, expr))
-    parse_indented_block!(code, nothing, Source(source), outerindent=outerindent, io=io, esc=transform_user_code, dir=dir)
+    parse_indented_block!(code, nothing, source, outerindent=outerindent, io=io, esc=transform_user_code, dir=dir)
     return code
 end
 
-macro _haml(io, outerindent, variables, dir, source)
-    generate_haml_writer_codeblock(source, outerindent=outerindent, io=esc(io), esc=identity, interp=sym -> :( $(esc(variables)).data.$sym ), dir=dir)
+macro _haml(io, outerindent, variables, dir, source, sourceref)
+    generate_haml_writer_codeblock(Source(source, sourceref), outerindent=outerindent, io=esc(io), esc=identity, interp=sym -> :( $(esc(variables)).data.$sym ), dir=dir)
 end
 
 macro haml_str(source)
@@ -311,7 +311,7 @@ macro haml_str(source)
     dirfd = ccall(:open, RawFD, (Cstring, Int32), rootdir, 0)
     reinterpret(Int32, dirfd) < 0 && error("Couldn't open $rootdir")
 
-    code = generate_haml_writer_codeblock(source, io=:io, esc=Base.esc, interp=identity, dir=dirfd)
+    code = generate_haml_writer_codeblock(Source(source, __source__), io=:io, esc=Base.esc, interp=identity, dir=dirfd)
     quote
         io = IOBuffer()
         $code

@@ -38,7 +38,8 @@ end
 module_template(dirfd) = quote
     @generated function writehaml(io::IO, ::FR, ::Val{indent}; variables...) where FR <: $FileRevision where indent
         source = read(open(FR()), String)
-        code = macroexpand($HAML, :( @_haml(io, $(string(indent)), variables, $($dirfd), $source) ))
+        sourceref = LineNumberNode(1, Symbol("<filename goes here>"))
+        code = macroexpand($HAML, :( @_haml(io, $(string(indent)), variables, $($dirfd), $source, $sourceref) ))
         return code
     end
 end
