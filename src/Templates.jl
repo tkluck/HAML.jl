@@ -5,16 +5,9 @@ import HAML: hamlfilter
 
 struct FileRevision{INode, MTime} end
 
-function openat_raw(dir::RawFD, filename::AbstractString)
-    fdesc = ccall(:openat, RawFD, (RawFD, Cstring, Int32), dir, filename, 0)
-    reinterpret(Int32, fdesc) < 0 && error("Couldn't open $filename")
-    return fdesc
-end
-
-openat(dir, filename) = open(openat_raw(dir, filename))
+openat(dirname, filename) = open(joinpath(dirname, filename))
 
 const open_files = Dict()
-const friendlynames = Dict()
 
 function Base.open(fr::FileRevision)
     io = get!(() -> error("Compiling render function when fd has been closed already!"), open_files, fr)
@@ -26,10 +19,10 @@ module Generated end
 
 function render end
 
-function hamlfilter(::Val{:include}, io::IO, dir::RawFD, indent, filename; variables...)
+function hamlfilter(::Val{:include}, io::IO, dir, indent, filename; variables...)
     relpath, base_name = dirname(filename), basename(filename)
     if !isempty(relpath)
-        dir = openat_raw(dir, relpath)
+        dir = joinpath(dir, relpath)
     end
     render(io, base_name, dir; indent=indent, variables=variables.data)
 end
@@ -44,14 +37,12 @@ module_template(dirfd) = quote
     end
 end
 
-function getmodule(dir::RawFD)
-    friendly = get!(() -> "", friendlynames, dir)
-    num = reinterpret(Int32, dir)
-    name = Symbol("FD$(num)_$(friendly)")
+function getmodule(dirname)
+    name = Symbol(dirname)
     try
         return getproperty(Generated, name)
     catch
-        Base.eval(Generated, :( module $name $(module_template(dir)) end ))
+        Base.eval(Generated, :( module $name $(module_template(dirname)) end ))
         return getproperty(Generated, name)
     end
 end
@@ -65,25 +56,17 @@ function FileRevision(file)
     end
 end
 
-function render(io::IO, filename::AbstractString, dir::RawFD; indent=Val(Symbol("")), variables=())
-    file = openat(dir, filename)
+function render(io::IO, filename::AbstractString, dirname::AbstractString; indent=Val(Symbol("")), variables=())
+    file = openat(dirname, filename)
     fr = FileRevision(file)
     open_files[fr] = file
     try
-        fn = getproperty(getmodule(dir), :writehaml)
+        fn = getproperty(getmodule(dirname), :writehaml)
         return Base.invokelatest(fn, io, fr, indent; variables...)
     finally
         delete!(open_files, fr)
         close(file)
     end
-end
-
-function render(io, filename::AbstractString, dirname::AbstractString; kwds...)
-    dir = open(dirname)
-    dir = ccall(:open, RawFD, (Cstring, Int32), dirname, 0)
-    reinterpret(Int32, dir) < 0 && error("Couldn't open $dirname")
-    friendlynames[dir] = dirname
-    return render(io, filename, dir; kwds...)
 end
 
 function render(io::IO, path::AbstractString; kwds...)

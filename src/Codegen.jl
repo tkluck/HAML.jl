@@ -308,10 +308,8 @@ macro haml_str(source)
             rootdir = pwd()
         end
     end
-    dirfd = ccall(:open, RawFD, (Cstring, Int32), rootdir, 0)
-    reinterpret(Int32, dirfd) < 0 && error("Couldn't open $rootdir")
 
-    code = generate_haml_writer_codeblock(Source(source, __source__), io=:io, esc=Base.esc, interp=identity, dir=dirfd)
+    code = generate_haml_writer_codeblock(Source(source, __source__), io=:io, esc=Base.esc, interp=identity, dir=rootdir)
     quote
         io = IOBuffer()
         $code
