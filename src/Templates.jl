@@ -10,9 +10,14 @@ openat(dirname, filename) = open(joinpath(dirname, filename))
 const open_files = Dict()
 
 function Base.open(fr::FileRevision)
-    io = get!(() -> error("Compiling render function when fd has been closed already!"), open_files, fr)
+    io, _ = get!(() -> error("Compiling render function when fd has been closed already!"), open_files, fr)
     seek(io, 0)
     return io
+end
+
+function Base.Symbol(fr::FileRevision)
+    _, name = get!(() -> error("Compiling render function when fd has been closed already!"), open_files, fr)
+    return name
 end
 
 module Generated end
@@ -31,7 +36,7 @@ end
 module_template(dirfd) = quote
     @generated function writehaml(io::IO, ::FR, ::Val{indent}; variables...) where FR <: $FileRevision where indent
         source = read(open(FR()), String)
-        sourceref = LineNumberNode(1, Symbol("<filename goes here>"))
+        sourceref = LineNumberNode(1, Symbol(FR()))
         code = macroexpand($HAML, :( @_haml(io, $(string(indent)), variables, $($dirfd), $source, $sourceref) ))
         return code
     end
@@ -59,7 +64,7 @@ end
 function render(io::IO, filename::AbstractString, dirname::AbstractString; indent=Val(Symbol("")), variables=())
     file = openat(dirname, filename)
     fr = FileRevision(file)
-    open_files[fr] = file
+    open_files[fr] = file, Symbol(joinpath(dirname, filename))
     try
         fn = getproperty(getmodule(dirname), :writehaml)
         return Base.invokelatest(fn, io, fr, indent; variables...)
