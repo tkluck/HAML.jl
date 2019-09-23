@@ -1,6 +1,8 @@
 using Test
 using HAML
 
+using DataStructures: OrderedDict
+
 macro expandsto(str1, str2)
     :( @test $(esc(str1)) == $(esc(str2)) )
 end
@@ -73,10 +75,10 @@ end
             """
         end
         begin
-            hash1() = Dict(:bread => "white", :filling => "peanut butter and jelly")
-            hash2() = Dict(:bread => "whole wheat")
+            hash1() = OrderedDict(:bread => "white", :filling => "peanut butter and jelly")
+            hash2() = OrderedDict(:bread => "whole wheat")
             @expandsto """
-            <sandwich filling='peanut butter and jelly' bread='whole wheat' delicious='true' />
+            <sandwich bread='whole wheat' filling='peanut butter and jelly' delicious='true' />
             """ haml"""
             %sandwich(hash1()..., hash2()..., delicious = "true")/
             """
