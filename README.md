@@ -2,6 +2,10 @@
 
 HTML Abstract Markup Language for Julia. Inspired by [Ruby's HAML](http://haml.info/).
 
+| **Build Status**                                                | **Test coverage**                                       |
+|:---------------------------------------------------------------:|:-------------------------------------------------------:|
+| [![][travis-img]][travis-url] [![][appveyor-img]][appveyor-url] | [![Coverage Status][codecov-img]][codecov-url]      |
+
 ## Synopsis
 
 The easiest way to use HAML in Julia is in the form of the `haml""` macro.
@@ -54,3 +58,12 @@ the following exceptions:
  - use `:include` for including `.hamljl` files.
 
  See the [test cases](test/runtests.jl) for examples.
+
+[travis-img]: https://travis-ci.org/tkluck/HAML.jl.svg?branch=master
+[travis-url]: https://travis-ci.org/tkluck/HAML.jl
+
+[appveyor-img]: https://ci.appveyor.com/api/projects/status/ga7fdg5mxnfe3po4?svg=true
+[appveyor-url]: https://ci.appveyor.com/project/tkluck/haml-jl
+
+[codecov-img]: https://codecov.io/gh/tkluck/HAML.jl/branch/master/graph/badge.svg
+[codecov-url]: https://codecov.io/gh/tkluck/HAML.jl
