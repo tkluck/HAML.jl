@@ -216,9 +216,9 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
          end
         if @capture source r"""
             ^
-            (?<indent>\h*)                      # indentation
-            (?=(?<sigil>%|\#|\.|-|=|\\|:|!!!))? # stanza type
-            (?:-|=|\\|:|!!!)?                   # consume these stanza types
+            (?<indent>\h*)                            # indentation
+            (?=(?<sigil>%|\#|\.|-\#|-|=|\\|/|:|!!!))? # stanza type
+            (?:-\#|-|=|\\|/|:|!!!)?                   # consume these stanza types
         """xm
             parsed_something = true
             if isnothing(firstindent)
@@ -278,6 +278,23 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
                 extendblock!(code, @nolinenodes quote
                     write($io, $"$indent$rest_of_line$nl")
                 end)
+            elseif sigil == "/"
+                @mustcapture source "Expecting a comment" r"\h*(?<rest_of_line>.*)$(?<nl>\v*)"m
+                if !isempty(rest_of_line)
+                    extendblock!(code, @nolinenodes quote
+                        write($io, $"$indent<!-- $rest_of_line -->$nl")
+                    end)
+                else
+                    body = @nolinenodes quote end
+                    haveblock = parse_indented_block!(body, indent, source, outerindent=outerindent, io=io, esc=esc, dir=dir)
+                    if haveblock
+                        extendblock!(code, @nolinenodes quote
+                            write($io, $"$indent<!--\n")
+                            $body
+                            write($io, $"$indent-->$nl")
+                        end)
+                    end
+                end
             elseif sigil == ":"
                 @mustcapture source "Expecting an expression" r"""
                     (?<code_to_parse>

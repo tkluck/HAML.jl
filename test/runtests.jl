@@ -171,6 +171,31 @@ end
         !!! 5
         """
     end
+    @testset "Comments" begin
+        @expandsto """
+        <peanutbutterjelly>
+          <!-- This is the peanutbutterjelly element -->
+          I like sandwiches!
+        </peanutbutterjelly>
+        """ haml"""
+        %peanutbutterjelly
+          / This is the peanutbutterjelly element
+          I like sandwiches!
+        """
+        @expandsto """
+        <!--
+          <p>This doesn't render...</p>
+          <div>
+            <h1>Because it's commented out!</h1>
+          </div>
+        -->
+        """ haml"""
+        /
+          %p This doesn't render...
+          %div
+            %h1 Because it's commented out!
+        """
+    end
     @testset "Scoping" begin
         let a = 2
             haml"""
