@@ -208,6 +208,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
 
     controlflow_this = nothing
     controlflow_prev = nothing
+    firstindent = nothing
     while !isempty(source)
         controlflow_this, controlflow_prev = nothing, controlflow_this
         if indentlength(match(r"\A\h*", source).match) <= indentlength(curindent)
@@ -220,6 +221,11 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
             (?:-|=|\\|:|!!!)?                   # consume these stanza types
         """xm
             parsed_something = true
+            if isnothing(firstindent)
+                firstindent = indent
+            else
+                isnothing(curindent) || firstindent == indent || error(source, "Jagged indentation")
+            end
             push!(code.args, LineNumberNode(source))
 
             if sigil in ("%", "#", ".")
