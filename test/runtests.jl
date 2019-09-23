@@ -171,6 +171,15 @@ end
         !!! 5
         """
     end
+    @testset "Scoping" begin
+        let a = 2
+            haml"""
+            - @test a == 2
+            - a = 3
+            """
+            @test a == 3
+        end
+    end
     @testset "Hygiene w.r.t. internal variables" begin
         @expandsto """
         <p>42</p>
