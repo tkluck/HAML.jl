@@ -23,6 +23,8 @@ function linecol(s::Source, ix::Int=s.ix)
     return line, col, LineNumberNode(line + s.__source__.line - 1, s.__source__.file)
 end
 
+Base.LineNumberNode(s::Source, ix::Int=s.ix) = linecol(s, ix)[3]
+
 Base.getindex(s::Source, ix::Int) = s.text[s.ix + ix - 1]
 Base.getindex(s::Source, ix::AbstractRange) = SubString(s.text, s.ix .+ ix .- 1)
 

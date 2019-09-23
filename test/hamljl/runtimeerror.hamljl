@@ -1,0 +1,7 @@
+!!! 5
+%html
+  %head
+    %title= "Some buggy Julia code"
+  %body
+    #error
+     %p= (1:3)[4]

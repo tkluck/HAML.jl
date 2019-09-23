@@ -17,6 +17,25 @@ function replace_interpolations(f, expr)
     end
 end
 
+function filterlinenodes(expr)
+    if expr isa Expr && expr.head == :block
+        args = filter(e -> !(e isa LineNumberNode), expr.args)
+        return Expr(expr.head, args...)
+    elseif expr isa Expr && expr.head == :$
+        return expr
+    elseif expr isa Expr
+        return Expr(expr.head, map(filterlinenodes, expr.args)...)
+    else
+        return expr
+    end
+end
+
+macro nolinenodes(expr)
+    @assert expr.head == :quote
+    args = map(filterlinenodes, expr.args)
+    return esc(Expr(:quote, args...))
+end
+
 indentlength(s) = mapreduce(c -> c == '\t' ? 8 : 1, +, s, init=0)
 indentlength(::Nothing) = -1
 
@@ -78,9 +97,7 @@ function extendblock!(block, expr)
             return
         end
     end
-    if !(expr isa LineNumberNode)
-        push!(block.args, expr)
-    end
+    push!(block.args, expr)
 end
 
 function parse_tag_stanza!(code, curindent, source; outerindent, io, esc, dir)
@@ -103,7 +120,7 @@ function parse_tag_stanza!(code, curindent, source; outerindent, io, esc, dir)
             if attributes_tuple_expr.head == :(=)
                 attributes_tuple_expr = :( ($attributes_tuple_expr,) )
             end
-            extendblock!(block, quote
+            extendblock!(block, @nolinenodes quote
                 let attributes_tuple = $(esc(attributes_tuple_expr))
                     for (attr, value) in pairs(attributes_tuple)
                         push!(attributes, attr => value)
@@ -112,11 +129,11 @@ function parse_tag_stanza!(code, curindent, source; outerindent, io, esc, dir)
             end)
         else
             if sigil == "."
-                extendblock!(block, quote
+                extendblock!(block, @nolinenodes quote
                     push!(attributes, :class => $value)
                 end)
             elseif sigil == "#"
-                extendblock!(block, quote
+                extendblock!(block, @nolinenodes quote
                     push!(attributes, :id => $value)
                 end)
             else
@@ -147,27 +164,27 @@ function parse_tag_stanza!(code, curindent, source; outerindent, io, esc, dir)
             $(?<nl>\v?)
         """mx
         expr = parse(source, code_to_parse)
-        code_for_inline_val = :( let val = $(esc(expr))
+        code_for_inline_val = filterlinenodes(:( let val = $(esc(expr))
             htmlesc($io, string(val))
-        end )
+        end  ))
     elseif !isnothing(rest_of_line)
-        code_for_inline_val = quote
+        code_for_inline_val = @nolinenodes quote
             write($io, $rest_of_line)
         end
     end
 
-    body = quote end
+    body = @nolinenodes quote end
     haveblock = parse_indented_block!(body, curindent, source, outerindent=outerindent, io=io, esc=esc, dir=dir)
     if !isnothing(closingslash)
         @assert isnothing(code_for_inline_val)
-        extendblock!(block, quote
+        extendblock!(block, @nolinenodes quote
             write($io, $"$outerindent$curindent<$tagname")
             writeattributes($io, attributes)
             write($io, $" />$nl")
         end)
     elseif haveblock
         @assert isnothing(code_for_inline_val)
-        extendblock!(block, quote
+        extendblock!(block, @nolinenodes quote
             write($io, $"$outerindent$curindent<$tagname")
             writeattributes($io, attributes)
             write($io, ">\n")
@@ -175,7 +192,7 @@ function parse_tag_stanza!(code, curindent, source; outerindent, io, esc, dir)
             write($io, $"$outerindent$curindent</$tagname>$nl")
         end)
     else
-        extendblock!(block, quote
+        extendblock!(block, @nolinenodes quote
             write($io, $"$outerindent$curindent<$tagname")
             writeattributes($io, attributes)
             write($io, ">")
@@ -203,6 +220,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
             (?:-|=|\\|:|!!!)?                   # consume these stanza types
         """xm
             parsed_something = true
+            push!(code.args, LineNumberNode(source))
 
             if sigil in ("%", "#", ".")
                 parse_tag_stanza!(code, indent, source, outerindent=outerindent, io=io, esc=esc, dir=dir)
@@ -220,7 +238,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
                     parse_indented_block!(block.args[2], indent, source, outerindent=outerindent, io=io, esc=esc, dir=dir)
                     controlflow_this = block
                 elseif !isnothing(match(r"\A\h*else\h*\z", code_to_parse))
-                    block = quote end
+                    block = @nolinenodes quote end
                     push!(controlflow_prev.args, block)
                     parse_indented_block!(block, indent, source, outerindent=outerindent, io=io, esc=esc, dir=dir)
                 elseif (block = parse(source, "$code_to_parse\nend", code_to_parse, raise=false); block isa Expr && block.head == :do)
@@ -242,7 +260,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
                     $(?<nl>\v?)
                 """mx
                 expr = parse(source, code_to_parse)
-                extendblock!(code, quote
+                extendblock!(code, @nolinenodes quote
                     write($io, $indent)
                     let val = $(esc(expr))
                         htmlesc($io, string(val))
@@ -251,7 +269,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
                 end)
             elseif sigil == "\\" || sigil == nothing
                 @mustcapture source "Expecting literal data" r"\h*(?<rest_of_line>.*)$(?<nl>\v*)"m
-                extendblock!(code, quote
+                extendblock!(code, @nolinenodes quote
                     write($io, $"$indent$rest_of_line$nl")
                 end)
             elseif sigil == ":"
@@ -263,11 +281,11 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
                 """mx
                 filter_expr = parse(source, code_to_parse)
                 if filter_expr isa Expr && filter_expr.head == :call
-                    extendblock!(code, quote
+                    extendblock!(code, @nolinenodes quote
                         hamlfilter(Val($(quot(filter_expr.args[1]))), $io, $dir, Val(Symbol($(outerindent * indent))), $(filter_expr.args[2:end]...))
                     end)
                     # TODO: define semantics for collapsing newlines
-                    #push!(code.args, quote
+                    #push!(code.args, @nolinenodes quote
                     #    write($io, $nl)
                     #end)
                 else
@@ -275,7 +293,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
                 end
             elseif sigil == "!!!"
                 @mustcapture source "Only support '!!! 5'" r"\h*5\h*$(?<nl>\v?)"m
-                extendblock!(code, quote
+                extendblock!(code, @nolinenodes quote
                     write($io, $"<!DOCTYPE html>$nl")
                 end)
             else
@@ -289,7 +307,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
 end
 
 function generate_haml_writer_codeblock(source; outerindent="", io, esc, interp, dir)
-    code = quote end
+    code = @nolinenodes quote end
     transform_user_code(expr) = esc(replace_interpolations(interp, expr))
     parse_indented_block!(code, nothing, source, outerindent=outerindent, io=io, esc=transform_user_code, dir=dir)
     return code
@@ -310,7 +328,7 @@ macro haml_str(source)
     end
 
     code = generate_haml_writer_codeblock(Source(source, __source__), io=:io, esc=Base.esc, interp=identity, dir=rootdir)
-    quote
+    @nolinenodes quote
         io = IOBuffer()
         $code
         String(take!(io))
