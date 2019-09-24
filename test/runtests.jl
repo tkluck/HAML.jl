@@ -195,6 +195,25 @@ end
           %div
             %h1 Because it's commented out!
         """
+        @expandsto """
+        <p>foo</p>
+        <p>bar</p>
+        """ haml"""
+        %p foo
+        -# This is a comment
+        %p bar
+        """
+        @expandsto """
+        <p>foo</p>
+        <p>bar</p>
+        """ haml"""
+        %p foo
+        -#
+          This won't be displayed
+            Nor will this
+                           Nor will this.
+        %p bar
+        """
     end
     @testset "Scoping" begin
         let a = 2

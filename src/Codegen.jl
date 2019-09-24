@@ -230,6 +230,11 @@ function parse_indented_block!(code, curindent, source; outerindent="", io, esc,
 
             if sigil in ("%", "#", ".")
                 parse_tag_stanza!(code, indent, source, outerindent=outerindent, io=io, esc=esc, dir=dir)
+            elseif sigil == "-#"
+                @mustcapture source "Expecting a comment" r"\h*(?<rest_of_line>.*)$(?<nl>\v?)"m
+                while indentlength(match(r"\A\h*", source).match) > indentlength(indent)
+                    @mustcapture source "Expecting comment continuing" r".*$\v?"m
+                end
             elseif sigil == "-"
                 @mustcapture source "Expecting an expression" r"""
                     \h*

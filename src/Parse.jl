@@ -79,18 +79,19 @@ function capture(haystack, needle)
             capturename = get(captures, ix, "_")
             esc(Symbol(capturename))
         end
-        return quote
-            m = match($r, $hay.text, $hay.ix, Base.PCRE.ANCHORED)
-            if isnothing(m)
-                false
-            else
-                ($(symbols...),) = m.captures
-                advance!($hay, length(m.match))
-                true
-            end
-        end
+        assign = :( ($(symbols...),) = m.captures )
     else
-        return :( !isnothing(match($r, $hay.text, $hay.ix, Base.PCRE.ANCHORED)) )
+        assign = :( )
+    end
+    return quote
+        m = match($r, $hay.text, $hay.ix, Base.PCRE.ANCHORED)
+        if isnothing(m)
+            false
+        else
+            $assign
+            advance!($hay, length(m.match))
+            true
+        end
     end
 end
 
