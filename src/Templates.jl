@@ -3,6 +3,9 @@ module Templates
 import HAML
 import HAML: hamlfilter
 
+import ..Parse: Source
+import ..Codegen: generate_haml_writer_codeblock, process_usercode
+
 struct FileRevision{INode, MTime} end
 
 openat(dirname, filename) = open(joinpath(dirname, filename))
@@ -32,13 +35,15 @@ function hamlfilter(::Val{:include}, io::IO, dir, indent, filename; variables...
     render(io, base_name, dir; indent=indent, variables=variables.data)
 end
 
+module_template(dir) = quote
+    import HAML: @io
 
-module_template(dirfd) = quote
     @generated function writehaml(io::IO, ::FR, ::Val{indent}; variables...) where FR <: $FileRevision where indent
         source = read(open(FR()), String)
         sourceref = LineNumberNode(1, Symbol(FR()))
-        code = macroexpand($HAML, :( @_haml(io, $(string(indent)), variables, $($dirfd), $source, $sourceref) ))
-        return code
+        useresc(code) = $process_usercode(@__MODULE__, code, esc(:io), identity)
+        code = $generate_haml_writer_codeblock($Source(source, sourceref), outerindent=string(indent), io=esc(:io), esc=useresc, interp=sym -> :( $(esc(:variables)).data.$sym ), dir=$dir)
+        return macroexpand($(HAML.Codegen), :( @hygiene($code) ), recursive=false)
     end
 end
 

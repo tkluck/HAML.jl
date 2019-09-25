@@ -53,11 +53,12 @@ end
           %two
             %three Hey there
         """
-        @expandsto """
-        <html xmlns='http://www.w3.org/1999/xhtml' xml:lang='en' lang='en'></html>
-        """ haml"""
-        %html(xmlns = "http://www.w3.org/1999/xhtml", Symbol("xml:lang") => "en", lang="en")
-        """
+        # pending https://github.com/JuliaLang/julia/issues/32121#issuecomment-534982081
+        #@expandsto """
+        #<html xmlns='http://www.w3.org/1999/xhtml' xml:lang='en' lang='en'></html>
+        #""" haml"""
+        #%html(xmlns = "http://www.w3.org/1999/xhtml", Symbol("xml:lang") => "en", lang="en")
+        #"""
         @expandsto """
         <script type='text/javascript' src='javascripts/script_9'></script>
         """ haml"""
@@ -249,6 +250,33 @@ end
         - forest = 42 # don't mistake this for a for loop because it starts with for
         %p= forest
         """
+        @expandsto """
+        1 2 3 4 5 6 7 8 9 10
+        """ haml"""
+        = haml"= join(1:10, ' ')"
+        """
+        @expandsto """
+        Hi!
+        Hello!
+        Bye!
+        """ haml"""
+        Hi!
+        - write(@io, "Hello!\n")
+        - write(@HAML.io, "Bye!\n")
+        """
+        @expandsto """
+        Writing to @io
+        """ haml"""
+        :include("hamljl/at-io.hamljl")
+        """
+        # pending https://github.com/JuliaLang/julia/issues/32121#issuecomment-534982081
+        #let attribute = :href # hygiene of the => operator inside a named tuple
+        #    @expandsto """
+        #    <a class='link', href='/index.html'>Home</a>
+        #    """ haml"""
+        #    %a(class="link", attribute => "/index.html") Home
+        #    """
+        #end
     end
     @testset "Control flow" begin
         @expandsto """

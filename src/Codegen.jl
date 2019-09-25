@@ -345,6 +345,96 @@ macro _haml(io, outerindent, variables, dir, source, sourceref)
     generate_haml_writer_codeblock(Source(source, sourceref), outerindent=outerindent, io=esc(io), esc=identity, interp=sym -> :( $(esc(variables)).data.$sym ), dir=dir)
 end
 
+function deref(mod, expr)
+    if expr isa Symbol
+        return getproperty(mod, expr)
+    elseif expr isa GlobalRef
+        return getproperty(expr.mod, expr.symbol)
+    elseif expr isa Expr && expr.head == :.
+        return deref(getproperty(mod, expr.args[1]), expr.args[2])
+    elseif expr isa QuoteNode
+        return deref(mod, expr.value)
+    else
+        dump(expr)
+        error("Don't know how to de-reference $expr")
+    end
+end
+
+macro hygiene(expr)
+    expr
+end
+
+
+function replace_macro(mod, expr, replacement)
+    before, after = replacement
+    if expr isa Expr && expr.head == :macrocall && deref(mod, expr.args[1]) == before
+        return after
+    elseif expr isa Expr
+        args = map(a -> replace_macro(mod, a, replacement), expr.args)
+        return Expr(expr.head, args...)
+    else
+        return expr
+    end
+end
+
+function _replace_object_unescaped(expr, replacement)
+    before, after = replacement
+    if expr == before
+        return after, true
+    elseif expr isa Expr && expr.head == :escape
+        res, substituted = _replace_object_unescaped(expr.args[1], replacement)
+        return (substituted ? res : Expr(:escape, res)), substituted
+    elseif expr isa Expr
+        result = map(a -> _replace_object_unescaped(a, replacement), expr.args)
+        if !any(r -> r[2], result)
+            args = map(r -> r[1], result)
+            substituted = false
+        else
+            args = map(result) do A
+                a, substituted = A
+                substituted ? a : esc(a)
+            end
+            substituted = true
+        end
+        return Expr(expr.head, args...), substituted
+    elseif expr isa Expr
+        result = map(a -> _replace_object_unescaped(a, replacement), expr.args)
+        args = map(r -> r[1], result)
+        substituted = any(r -> r[2], result)
+        return Expr(expr.head, args...), substituted
+    else
+        return expr, false
+    end
+end
+
+function replace_object_unescaped(expr, replacement)
+    result, _ = _replace_object_unescaped(expr, replacement)
+    return result
+end
+
+function hasmacrocall(expr)
+    if expr isa Expr && expr.head == :macrocall
+        return true
+    elseif expr isa Expr
+        return any(hasmacrocall, expr.args)
+    else
+        return false
+    end
+end
+
+mutable struct Mark end
+
+function process_usercode(mod, code, io, esc)
+    MARK = Mark()
+    at_io = getproperty(@__MODULE__, Symbol("@io"))
+    while hasmacrocall(code)
+        code = replace_macro(mod, code, at_io => MARK)
+        code = macroexpand(mod, code, recursive=false)
+    end
+    code = replace_object_unescaped(esc(code), MARK => io)
+    code
+end
+
 macro haml_str(source)
     if isnothing(__source__.file)
         rootdir = pwd()
@@ -355,12 +445,18 @@ macro haml_str(source)
         end
     end
 
-    code = generate_haml_writer_codeblock(Source(source, __source__), io=:io, esc=Base.esc, interp=identity, dir=rootdir)
+    useresc(code) = process_usercode(__module__, code, :io, esc)
+    code = generate_haml_writer_codeblock(Source(source, __source__), io=:io, esc=useresc, interp=identity, dir=rootdir)
+
     @nolinenodes quote
         io = IOBuffer()
         $code
         String(take!(io))
     end
+end
+
+macro io()
+    error("This macro can only be used from within a HAML template")
 end
 
 end # module

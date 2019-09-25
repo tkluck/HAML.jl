@@ -7,9 +7,9 @@ include("Parse.jl")
 include("Codegen.jl")
 include("Templates.jl")
 
-import .Codegen: generate_haml_writer_codeblock, @_haml, @haml_str
+import .Codegen: generate_haml_writer_codeblock, @_haml, @haml_str, @io
 import .Templates: render
 
-export @haml_str, render
+export @haml_str, render, @io
 
 end # module
