@@ -1,0 +1,1 @@
+- write(@io, "Writing to @io\n")
