@@ -42,7 +42,7 @@ module_template(dir) = quote
     @generated function writehaml(io::IO, ::FR, ::Val{indent}; variables...) where FR <: $FileRevision where indent
         source = read(open(FR()), String)
         sourceref = LineNumberNode(1, Symbol(FR()))
-        code = $generate_haml_writer_codeblock($Source(source, sourceref), outerindent=string(indent), io=esc(:io), esc=identity, interp=sym -> :( $(esc(:variables)).data.$sym ), dir=$dir)
+        code = $generate_haml_writer_codeblock($Source(source, sourceref), outerindent=string(indent), esc=identity, interp=sym -> :( $(esc(:variables)).data.$sym ), dir=$dir)
         code = $replace_macro_hygienic(@__MODULE__, $(HAML.Codegen), code, $at_io => esc(:io))
         return $make_hygienic(@__MODULE__, code)
     end
