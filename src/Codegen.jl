@@ -6,7 +6,7 @@ import DataStructures: OrderedDict
 import Markdown: htmlesc
 
 import HAML: hamlfilter
-import ..Hygiene: replace_macro_hygienic
+import ..Hygiene: replace_macro_hygienic, deref
 import ..Parse: @capture, @mustcapture, Source
 
 function filterlinenodes(expr)
@@ -30,6 +30,19 @@ end
 
 indentlength(s) = mapreduce(c -> c == '\t' ? 8 : 1, +, s, init=0)
 indentlength(::Nothing) = -1
+
+function materialize_indentation(expr, cur="")
+    if expr isa Expr && expr.head == :hamlindented
+        return materialize_indentation(expr.args[2], cur * expr.args[1])
+    elseif expr isa Indentation
+        return cur
+    elseif expr isa Expr
+        args = map(a -> materialize_indentation(a, cur), expr.args)
+        return Expr(expr.head, args...)
+    else
+        return expr
+    end
+end
 
 function makeattr(name, val)
     ignore(x) = isnothing(x) || x === false
@@ -157,26 +170,36 @@ function parse_tag_stanza!(code, curindent, source; outerindent, dir)
     end
 
     body = @nolinenodes quote end
-    haveblock = parse_indented_block!(body, curindent, source, outerindent=outerindent, dir=dir)
+    indentation = parse_indented_block!(body, curindent, source, outerindent=outerindent, dir=dir)
+    if isnothing(indentation)
+        haveblock = false
+    else
+        body = :( @indented $indentation $body )
+        haveblock = true
+    end
     if !isnothing(closingslash)
         @assert isnothing(code_for_inline_val)
         extendblock!(block, @nolinenodes quote
-            @output $"$outerindent$curindent<$tagname"
+            @indent
+            @output $"<$tagname"
             $writeattributes(@io, attributes)
             @output $" />$nl"
         end)
     elseif haveblock
         @assert isnothing(code_for_inline_val)
         extendblock!(block, @nolinenodes quote
-            @output $"$outerindent$curindent<$tagname"
+            @indent
+            @output $"<$tagname"
             $writeattributes(@io, attributes)
             @output ">\n"
             $body
-            @output $"$outerindent$curindent</$tagname>$nl"
+            @indent
+            @output $"</$tagname>$nl"
         end)
     else
         extendblock!(block, @nolinenodes quote
-            @output $"$outerindent$curindent<$tagname"
+            @indent
+            @output $"<$tagname"
             $writeattributes(@io, attributes)
             @output ">"
             $code_for_inline_val
@@ -185,25 +208,28 @@ function parse_tag_stanza!(code, curindent, source; outerindent, dir)
     end
 end
 
+indentdiff(a, b::Nothing) = a
+
+function indentdiff(a, b)
+    startswith(a, b) || error("Expecting uniform indentation")
+    return a[1+length(b):end]
+end
 
 function parse_indented_block!(code, curindent, source; outerindent="", dir)
-    parsed_something = false
-
     controlflow_this = nothing
     controlflow_prev = nothing
     firstindent = nothing
     while !isempty(source)
         controlflow_this, controlflow_prev = nothing, controlflow_this
         if indentlength(match(r"\A\h*", source).match) <= indentlength(curindent)
-             return parsed_something
-         end
+            return isnothing(firstindent) ? nothing : indentdiff(firstindent, curindent)
+        end
         if @capture source r"""
             ^
             (?<indent>\h*)                            # indentation
             (?=(?<sigil>%|\#|\.|-\#|-|=|\\|/|:|!!!))? # stanza type
             (?:-\#|-|=|\\|/|:|!!!)?                   # consume these stanza types
         """xm
-            parsed_something = true
             if isnothing(firstindent)
                 firstindent = indent
             else
@@ -255,7 +281,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", dir)
                 """mx
                 expr = parse(source, code_to_parse)
                 extendblock!(code, @nolinenodes quote
-                    @output $indent
+                    @indent
                     let val = $(esc(expr))
                         @htmlesc string(val)
                     end
@@ -264,22 +290,27 @@ function parse_indented_block!(code, curindent, source; outerindent="", dir)
             elseif sigil == "\\" || sigil == nothing
                 @mustcapture source "Expecting literal data" r"\h*(?<rest_of_line>.*)$(?<nl>\v*)"m
                 extendblock!(code, @nolinenodes quote
-                    @output $"$indent$rest_of_line$nl"
+                    @indent
+                    @output $"$rest_of_line$nl"
                 end)
             elseif sigil == "/"
                 @mustcapture source "Expecting a comment" r"\h*(?<rest_of_line>.*)$(?<nl>\v*)"m
                 if !isempty(rest_of_line)
                     extendblock!(code, @nolinenodes quote
-                        @output $"$indent<!-- $rest_of_line -->$nl"
+                        @indent
+                        @output $"<!-- $rest_of_line -->$nl"
                     end)
                 else
                     body = @nolinenodes quote end
-                    haveblock = parse_indented_block!(body, indent, source, outerindent=outerindent, dir=dir)
-                    if haveblock
+                    indentation = parse_indented_block!(body, indent, source, outerindent=outerindent, dir=dir)
+                    if !isnothing(indentation)
+                        body = :( @indented $indentation $body )
                         extendblock!(code, @nolinenodes quote
-                            @output $"$indent<!--\n"
+                            @indent
+                            @output $"<!--\n"
                             $body
-                            @output $"$indent-->$nl"
+                            @indent
+                            @output $"-->$nl"
                         end)
                     end
                 end
@@ -314,7 +345,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", dir)
             error(source, "Unrecognized")
         end
     end
-    return parsed_something
+    return isnothing(firstindent) ? nothing : indentdiff(firstindent, curindent)
 end
 
 function generate_haml_writer_codeblock(source; outerindent="", dir)
@@ -335,6 +366,7 @@ macro haml_str(source)
 
     code = generate_haml_writer_codeblock(Source(source, __source__), dir=rootdir)
     code = replace_macro_hygienic(@__MODULE__, __module__, code, at_io => :io)
+    code = materialize_indentation(code)
 
     @nolinenodes quote
         io = IOBuffer()
@@ -344,12 +376,29 @@ macro haml_str(source)
 end
 
 macro io()
-    error("This macro can only be used from within a HAML template")
+    error("The @io macro can only be used from within a HAML template")
 end
+
+mutable struct Indentation
+end
+
+macro indentation()
+    Indentation()
+end
+
+
+macro indented(indentation, expr)
+    Expr(:hamlindented, esc(indentation), esc(expr))
+end
+
 
 macro output(expr...)
     expr = map(esc, expr)
     :( write(@io, $(expr...)) )
+end
+
+macro indent()
+    :( @output @indentation )
 end
 
 macro htmlesc(expr...)
