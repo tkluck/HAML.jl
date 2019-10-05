@@ -43,7 +43,7 @@ module_template(dir) = quote
         source = read(open(FR()), String)
         sourceref = LineNumberNode(1, Symbol(FR()))
         code = $generate_haml_writer_codeblock($Source(source, sourceref), outerindent=string(indent), dir=$dir)
-        code = $replace_macro_hygienic(@__MODULE__, $(HAML.Codegen), code, $at_io => :io)
+        code = $replace_macro_hygienic($(HAML.Codegen), @__MODULE__, code, $at_io => :io)
         code = $replace_interpolations(code) do sym
             sym isa Symbol || error("Can only use variables as interpolations")
             :( $(esc(:variables)).data.$sym )
