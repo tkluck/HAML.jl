@@ -3,7 +3,7 @@ module Templates
 import HAML
 import HAML: hamlfilter
 
-import ..Hygiene: replace_macro_hygienic, make_hygienic
+import ..Hygiene: replace_macro_hygienic, make_hygienic, invert_escaping, replace_interpolations
 import ..Parse: Source
 import ..Codegen: generate_haml_writer_codeblock, at_io
 
@@ -42,9 +42,15 @@ module_template(dir) = quote
     @generated function writehaml(io::IO, ::FR, ::Val{indent}; variables...) where FR <: $FileRevision where indent
         source = read(open(FR()), String)
         sourceref = LineNumberNode(1, Symbol(FR()))
-        code = $generate_haml_writer_codeblock($Source(source, sourceref), outerindent=string(indent), esc=identity, interp=sym -> :( $(esc(:variables)).data.$sym ), dir=$dir)
-        code = $replace_macro_hygienic(@__MODULE__, $(HAML.Codegen), code, $at_io => esc(:io))
-        return $make_hygienic(@__MODULE__, code)
+        code = $generate_haml_writer_codeblock($Source(source, sourceref), outerindent=string(indent), dir=$dir)
+        code = $replace_macro_hygienic(@__MODULE__, $(HAML.Codegen), code, $at_io => :io)
+        code = $replace_interpolations(code) do sym
+            sym isa Symbol || error("Can only use variables as interpolations")
+            :( $(esc(:variables)).data.$sym )
+        end
+        code = $invert_escaping(code)
+        code = $make_hygienic(@__MODULE__, code)
+        return code
     end
 end
 

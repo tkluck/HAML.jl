@@ -9,15 +9,6 @@ import HAML: hamlfilter
 import ..Hygiene: replace_macro_hygienic
 import ..Parse: @capture, @mustcapture, Source
 
-function replace_interpolations(f, expr)
-    !(expr isa Expr) && return expr
-    if expr.head == :$ && length(expr.args) == 1 && expr.args[1] isa Symbol
-        return f(expr.args[1])
-    else
-        return Expr(expr.head, map(a -> replace_interpolations(f, a), expr.args)...)
-    end
-end
-
 function filterlinenodes(expr)
     if expr isa Expr && expr.head == :block
         args = filter(e -> !(e isa LineNumberNode), expr.args)
@@ -101,7 +92,7 @@ function extendblock!(block, expr)
     push!(block.args, expr)
 end
 
-function parse_tag_stanza!(code, curindent, source; outerindent, esc, dir)
+function parse_tag_stanza!(code, curindent, source; outerindent, dir)
     @mustcapture source "Expecting a tag name" r"(?:%(?<tagname>[A-Za-z0-9]+)?)?"
     tagname = something(tagname, "div")
 
@@ -175,7 +166,7 @@ function parse_tag_stanza!(code, curindent, source; outerindent, esc, dir)
     end
 
     body = @nolinenodes quote end
-    haveblock = parse_indented_block!(body, curindent, source, outerindent=outerindent, esc=esc, dir=dir)
+    haveblock = parse_indented_block!(body, curindent, source, outerindent=outerindent, dir=dir)
     if !isnothing(closingslash)
         @assert isnothing(code_for_inline_val)
         extendblock!(block, @nolinenodes quote
@@ -204,7 +195,7 @@ function parse_tag_stanza!(code, curindent, source; outerindent, esc, dir)
 end
 
 
-function parse_indented_block!(code, curindent, source; outerindent="", esc, dir)
+function parse_indented_block!(code, curindent, source; outerindent="", dir)
     parsed_something = false
 
     controlflow_this = nothing
@@ -230,7 +221,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", esc, dir
             push!(code.args, LineNumberNode(source))
 
             if sigil in ("%", "#", ".")
-                parse_tag_stanza!(code, indent, source, outerindent=outerindent, esc=esc, dir=dir)
+                parse_tag_stanza!(code, indent, source, outerindent=outerindent, dir=dir)
             elseif sigil == "-#"
                 @mustcapture source "Expecting a comment" r"\h*(?<rest_of_line>.*)$(?<nl>\v?)"m
                 while indentlength(match(r"\A\h*", source).match) > indentlength(indent)
@@ -247,18 +238,18 @@ function parse_indented_block!(code, curindent, source; outerindent="", esc, dir
                     block = parse(source, "$code_to_parse\nend", code_to_parse)
                     block.args[1] = esc(block.args[1])
                     extendblock!(code, block)
-                    parse_indented_block!(block.args[2], indent, source, outerindent=outerindent, esc=esc, dir=dir)
+                    parse_indented_block!(block.args[2], indent, source, outerindent=outerindent, dir=dir)
                     controlflow_this = block
                 elseif !isnothing(match(r"\A\h*else\h*\z", code_to_parse))
                     block = @nolinenodes quote end
                     push!(controlflow_prev.args, block)
-                    parse_indented_block!(block, indent, source, outerindent=outerindent, esc=esc, dir=dir)
+                    parse_indented_block!(block, indent, source, outerindent=outerindent, dir=dir)
                 elseif (block = parse(source, "$code_to_parse\nend", code_to_parse, raise=false); block isa Expr && block.head == :do)
                     block.args[1] = esc(block.args[1])
                     block.args[2].args[1] = esc(block.args[2].args[1])
                     extendblock!(code, block)
                     body_of_fun = block.args[2].args[2]
-                    parse_indented_block!(body_of_fun, indent, source, outerindent=outerindent, esc=esc, dir=dir)
+                    parse_indented_block!(body_of_fun, indent, source, outerindent=outerindent, dir=dir)
                 else
                     expr = parse(source, code_to_parse)
                     extendblock!(code, esc(expr))
@@ -292,7 +283,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", esc, dir
                     end)
                 else
                     body = @nolinenodes quote end
-                    haveblock = parse_indented_block!(body, indent, source, outerindent=outerindent, esc=esc, dir=dir)
+                    haveblock = parse_indented_block!(body, indent, source, outerindent=outerindent, dir=dir)
                     if haveblock
                         extendblock!(code, @nolinenodes quote
                             write(@io, $"$indent<!--\n")
@@ -335,10 +326,9 @@ function parse_indented_block!(code, curindent, source; outerindent="", esc, dir
     return parsed_something
 end
 
-function generate_haml_writer_codeblock(source; outerindent="", esc, interp, dir)
+function generate_haml_writer_codeblock(source; outerindent="", dir)
     code = @nolinenodes quote end
-    transform_user_code(expr) = esc(replace_interpolations(interp, expr))
-    parse_indented_block!(code, nothing, source, outerindent=outerindent, esc=transform_user_code, dir=dir)
+    parse_indented_block!(code, nothing, source, outerindent=outerindent, dir=dir)
     return code
 end
 
@@ -352,7 +342,7 @@ macro haml_str(source)
         end
     end
 
-    code = generate_haml_writer_codeblock(Source(source, __source__), esc=esc, interp=_->error("No iterpolation please"), dir=rootdir)
+    code = generate_haml_writer_codeblock(Source(source, __source__), dir=rootdir)
     code = replace_macro_hygienic(@__MODULE__, __module__, code, at_io => :io)
 
     @nolinenodes quote
