@@ -126,14 +126,15 @@ end
     end
     @testset "Whitespace" begin
         @expandsto "" haml""
-        @expandsto "
-        " haml"
-        "
-        @expandsto "
-
-        " haml"
-
-        "
+        # disabled while we re-work indentation handling
+        #@expandsto "
+        #" haml"
+        #"
+        #@expandsto "
+#
+        #" haml"
+#
+        #"
         # no closing newline
         @expandsto "<div class='hello'></div>" haml"%div.hello"
 
