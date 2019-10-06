@@ -216,6 +216,36 @@ end
         %p bar
         """
     end
+    @testset "Helper methods" begin
+        @expandsto """
+        (<a href='#'>learn more</a>)
+        """ haml"""
+        - @surround("(", ")") do
+          %a(href="#") learn more
+        """
+        @expandsto """
+        *<span>Required</span>
+        """ haml"""
+        - @precede("*") do
+          %span Required
+        """
+        @expandsto """
+        Begin by
+        <a href='#'>filling out your profile</a>,
+        <a href='#'>adding a bio</a>,
+        and
+        <a href='#'>inviting friends</a>.
+        """ haml"""
+        Begin by
+        - @succeed(",") do
+          %a(href="#") filling out your profile
+        - @succeed(",") do
+          %a(href="#") adding a bio
+        and
+        - @succeed(".") do
+          %a(href="#") inviting friends
+        """
+    end
     @testset "Scoping" begin
         let a = 2
             haml"""

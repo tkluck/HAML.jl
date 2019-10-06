@@ -7,10 +7,13 @@ include("Hygiene.jl")
 include("Parse.jl")
 include("Codegen.jl")
 include("Templates.jl")
+include("Helpers.jl")
 
 import .Codegen: generate_haml_writer_codeblock, @haml_str, @io
 import .Templates: render
+import .Helpers: @surround, @precede, @succeed
 
 export @haml_str, render, @io
+export @surround, @precede, @succeed
 
 end # module

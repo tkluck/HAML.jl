@@ -147,7 +147,7 @@ function parse_tag_stanza!(code, curindent, source; outerindent, dir)
           (?<rest_of_line>.+)
         )?
         $
-        (?<nl>\v*)
+        (?<newline>\v*)
     """mx
 
     code_for_inline_val = nothing
@@ -157,7 +157,7 @@ function parse_tag_stanza!(code, curindent, source; outerindent, dir)
             (?<code_to_parse>
                 (?:,\h*(?:\#.*)?\v|.)*
             )
-            $(?<nl>\v?)
+            $(?<newline>\v?)
         """mx
         expr = parse(source, code_to_parse)
         code_for_inline_val = filterlinenodes(:( let val = $(esc(expr))
@@ -170,42 +170,40 @@ function parse_tag_stanza!(code, curindent, source; outerindent, dir)
     end
 
     body = @nolinenodes quote end
-    indentation = parse_indented_block!(body, curindent, source, outerindent=outerindent, dir=dir)
-    if isnothing(indentation)
+    parseresult = parse_indented_block!(body, curindent, source, outerindent=outerindent, dir=dir)
+    if isnothing(parseresult)
         haveblock = false
     else
-        body = :( @indented $indentation $body )
+        indentation, newline = parseresult
+        body = filterlinenodes(:( @indented $indentation (@indent; $body) ))
         haveblock = true
     end
     if !isnothing(closingslash)
         @assert isnothing(code_for_inline_val)
         extendblock!(block, @nolinenodes quote
-            @indent
             @output $"<$tagname"
             $writeattributes(@io, attributes)
-            @output $" />$nl"
+            @output $" />"
         end)
     elseif haveblock
         @assert isnothing(code_for_inline_val)
         extendblock!(block, @nolinenodes quote
-            @indent
             @output $"<$tagname"
             $writeattributes(@io, attributes)
             @output ">\n"
             $body
-            @indent
-            @output $"</$tagname>$nl"
+            @nextline $"</$tagname>"
         end)
     else
         extendblock!(block, @nolinenodes quote
-            @indent
             @output $"<$tagname"
             $writeattributes(@io, attributes)
             @output ">"
             $code_for_inline_val
-            @output $"</$tagname>$nl"
+            @output $"</$tagname>"
         end)
     end
+    return newline
 end
 
 indentdiff(a, b::Nothing) = a
@@ -219,31 +217,47 @@ function parse_indented_block!(code, curindent, source; outerindent="", dir)
     controlflow_this = nothing
     controlflow_prev = nothing
     firstindent = nothing
-    while !isempty(source)
+    newline = ""
+    while true
         controlflow_this, controlflow_prev = nothing, controlflow_this
-        if indentlength(match(r"\A\h*", source).match) <= indentlength(curindent)
-            return isnothing(firstindent) ? nothing : indentdiff(firstindent, curindent)
+        if isempty(source) || indentlength(match(r"\A\h*", source).match) <= indentlength(curindent)
+            isnothing(firstindent) && return nothing
+            return indentdiff(firstindent, curindent), newline
         end
         if @capture source r"""
             ^
             (?<indent>\h*)                            # indentation
-            (?=(?<sigil>%|\#|\.|-\#|-|=|\\|/|:|!!!))? # stanza type
-            (?:-\#|-|=|\\|/|:|!!!)?                   # consume these stanza types
+            (?:
+              (?<elseblock>-\h*else\h*$\v?)
+              |
+              (?=(?<sigil>%|\#|\.|-\#|-|=|\\|/|:|!!!))? # stanza type
+              (?:-\#|-|=|\\|/|:|!!!)?                   # consume these stanza types
+            )
         """xm
             if isnothing(firstindent)
                 firstindent = indent
+            elseif !isnothing(elseblock)
+                block = @nolinenodes quote end
+                push!(controlflow_prev.args, block)
+                parseresult = parse_indented_block!(block, indent, source, outerindent=outerindent, dir=dir)
+                if !isnothing(parseresult)
+                    _, newline = parseresult
+                end
+                continue
             else
                 isnothing(curindent) || firstindent == indent || error(source, "Jagged indentation")
+                extendblock!(code, :( @output $newline @indentation ))
             end
             push!(code.args, LineNumberNode(source))
 
             if sigil in ("%", "#", ".")
-                parse_tag_stanza!(code, indent, source, outerindent=outerindent, dir=dir)
+                newline = parse_tag_stanza!(code, indent, source, outerindent=outerindent, dir=dir)
             elseif sigil == "-#"
-                @mustcapture source "Expecting a comment" r"\h*(?<rest_of_line>.*)$(?<nl>\v?)"m
+                @mustcapture source "Expecting a comment" r"\h*(?<rest_of_line>.*)$(?<newline>\v?)"m
                 while indentlength(match(r"\A\h*", source).match) > indentlength(indent)
                     @mustcapture source "Expecting comment continuing" r".*$\v?"m
                 end
+                newline = ""
             elseif sigil == "-"
                 @mustcapture source "Expecting an expression" r"""
                     \h*
@@ -251,25 +265,52 @@ function parse_indented_block!(code, curindent, source; outerindent="", dir)
                         (?:,\h*(?:\#.*)?\v|.)*
                     )$\v?
                 """mx
-                if startswith(code_to_parse, r"\h*(?:for|if|while)\b")
+                if startswith(code_to_parse, r"\h*(?:for|while)\b")
+                    block = parse(source, "$code_to_parse\nend", code_to_parse)
+                    block.args[1] = esc(block.args[1])
+                    body_of_loop = block.args[2] = @nolinenodes quote
+                        !first && @nextline
+                        first = false
+                    end
+                    parseresult = parse_indented_block!(body_of_loop, indent, source, outerindent=outerindent, dir=dir)
+                    if !isnothing(parseresult)
+                        _, newline = parseresult
+                    end
+                    extendblock!(code, @nolinenodes quote
+                        let first=true
+                            $block
+                        end
+                    end)
+                    controlflow_this = block
+                elseif startswith(code_to_parse, r"\h*if\b")
                     block = parse(source, "$code_to_parse\nend", code_to_parse)
                     block.args[1] = esc(block.args[1])
                     extendblock!(code, block)
-                    parse_indented_block!(block.args[2], indent, source, outerindent=outerindent, dir=dir)
+                    parseresult = parse_indented_block!(block.args[2], indent, source, outerindent=outerindent, dir=dir)
+                    if !isnothing(parseresult)
+                        _, newline = parseresult
+                    end
                     controlflow_this = block
-                elseif !isnothing(match(r"\A\h*else\h*\z", code_to_parse))
-                    block = @nolinenodes quote end
-                    push!(controlflow_prev.args, block)
-                    parse_indented_block!(block, indent, source, outerindent=outerindent, dir=dir)
                 elseif (block = parse(source, "$code_to_parse\nend", code_to_parse, raise=false); block isa Expr && block.head == :do)
                     block.args[1] = esc(block.args[1])
                     block.args[2].args[1] = esc(block.args[2].args[1])
-                    extendblock!(code, block)
-                    body_of_fun = block.args[2].args[2]
-                    parse_indented_block!(body_of_fun, indent, source, outerindent=outerindent, dir=dir)
+                    body_of_fun = block.args[2].args[2] = @nolinenodes quote
+                        !first && @nextline
+                        first = false
+                    end
+                    parseresult = parse_indented_block!(body_of_fun, indent, source, outerindent=outerindent, dir=dir)
+                    if !isnothing(parseresult)
+                        _, newline = parseresult
+                    end
+                    extendblock!(code, @nolinenodes quote
+                        let first=true
+                            $block
+                        end
+                    end)
                 else
                     expr = parse(source, code_to_parse)
                     extendblock!(code, esc(expr))
+                    newline = ""
                 end
             elseif sigil == "="
                 @mustcapture source "Expecting an expression" r"""
@@ -277,40 +318,35 @@ function parse_indented_block!(code, curindent, source; outerindent="", dir)
                     (?<code_to_parse>
                         (?:.*|,\h*\v)*
                     )
-                    $(?<nl>\v?)
+                    $(?<newline>\v?)
                 """mx
                 expr = parse(source, code_to_parse)
                 extendblock!(code, @nolinenodes quote
-                    @indent
                     let val = $(esc(expr))
                         @htmlesc string(val)
                     end
-                    @output $nl
                 end)
             elseif sigil == "\\" || sigil == nothing
-                @mustcapture source "Expecting literal data" r"\h*(?<rest_of_line>.*)$(?<nl>\v*)"m
+                @mustcapture source "Expecting literal data" r"\h*(?<rest_of_line>.*)$(?<newline>\v?)"m
                 extendblock!(code, @nolinenodes quote
-                    @indent
-                    @output $"$rest_of_line$nl"
+                    @output $"$rest_of_line"
                 end)
             elseif sigil == "/"
-                @mustcapture source "Expecting a comment" r"\h*(?<rest_of_line>.*)$(?<nl>\v*)"m
+                @mustcapture source "Expecting a comment" r"\h*(?<rest_of_line>.*)$(?<newline>\v?)"m
                 if !isempty(rest_of_line)
                     extendblock!(code, @nolinenodes quote
-                        @indent
-                        @output $"<!-- $rest_of_line -->$nl"
+                        @output $"<!-- $rest_of_line -->"
                     end)
                 else
                     body = @nolinenodes quote end
-                    indentation = parse_indented_block!(body, indent, source, outerindent=outerindent, dir=dir)
-                    if !isnothing(indentation)
-                        body = :( @indented $indentation $body )
+                    parseresult = parse_indented_block!(body, indent, source, outerindent=outerindent, dir=dir)
+                    if !isnothing(parseresult)
+                        indentation, newline = parseresult
+                        body = filterlinenodes(:( @indented $indentation (@indent; $body) ))
                         extendblock!(code, @nolinenodes quote
-                            @indent
                             @output $"<!--\n"
                             $body
-                            @indent
-                            @output $"-->$nl"
+                            @nextline $"-->"
                         end)
                     end
                 end
@@ -319,24 +355,21 @@ function parse_indented_block!(code, curindent, source; outerindent="", dir)
                     (?<code_to_parse>
                         (?:.*|,\h*\v)*
                     )
-                    $(?<nl>\v?)
+                    $(?<newline>\v?)
                 """mx
                 filter_expr = parse(source, code_to_parse)
                 if filter_expr isa Expr && filter_expr.head == :call
                     extendblock!(code, @nolinenodes quote
                         $hamlfilter(Val($(quot(filter_expr.args[1]))), @io, $dir, Val(Symbol($(outerindent * indent))), $(filter_expr.args[2:end]...))
                     end)
-                    # TODO: define semantics for collapsing newlines
-                    #push!(code.args, @nolinenodes quote
-                    #    @output $nl
-                    #end)
                 else
                     error(source, "Unrecognized filter: $filter_expr")
                 end
+                newline = ""
             elseif sigil == "!!!"
-                @mustcapture source "Only support '!!! 5'" r"\h*5\h*$(?<nl>\v?)"m
+                @mustcapture source "Only support '!!! 5'" r"\h*5\h*$(?<newline>\v?)"m
                 extendblock!(code, @nolinenodes quote
-                    @output $"<!DOCTYPE html>$nl"
+                    @output $"<!DOCTYPE html>"
                 end)
             else
                 error(source, "Unrecognized sigil: $sigil")
@@ -345,13 +378,21 @@ function parse_indented_block!(code, curindent, source; outerindent="", dir)
             error(source, "Unrecognized")
         end
     end
-    return isnothing(firstindent) ? nothing : indentdiff(firstindent, curindent)
 end
 
 function generate_haml_writer_codeblock(source; outerindent="", dir)
     code = @nolinenodes quote end
-    parse_indented_block!(code, nothing, source, outerindent=outerindent, dir=dir)
-    return code
+    parseresult = parse_indented_block!(code, nothing, source, outerindent=outerindent, dir=dir)
+    if isnothing(parseresult)
+        return code
+    else
+        indentation, newline = parseresult
+        return @nolinenodes quote
+            @output $indentation
+            $code
+            @output $newline
+        end
+    end
 end
 
 macro haml_str(source)
@@ -391,6 +432,10 @@ macro indented(indentation, expr)
     Expr(:hamlindented, esc(indentation), esc(expr))
 end
 
+macro nextline(expr...)
+    expr = map(esc, expr)
+    :( @output "\n" @indentation() $(expr...) )
+end
 
 macro output(expr...)
     expr = map(esc, expr)
