@@ -138,16 +138,19 @@ function parse_tag_stanza!(code, curindent, source; outerindent, dir)
         end
     end
 
-    @mustcapture source "Expecting '=', '/', or whitespace" r"""
-        (?<equalssign>\=)
-        |
-        (?<closingslash>/)?
+    @mustcapture source "Expecting '<', '=', '/', or whitespace" r"""
+        (?<eatwhitespace>\<)?
         (?:
-          \h+
-          (?<rest_of_line>.+)
-        )?
-        $
-        (?<newline>\v*)
+            (?<equalssign>\=)
+            |
+            (?<closingslash>/)?
+            (?:
+              \h+
+              (?<rest_of_line>.+)
+            )?
+            $
+            (?<newline>\v*)
+        )
     """mx
 
     code_for_inline_val = nothing
@@ -174,8 +177,10 @@ function parse_tag_stanza!(code, curindent, source; outerindent, dir)
     if isnothing(parseresult)
         haveblock = false
     else
-        indentation, newline = parseresult
-        body = filterlinenodes(:( @indented $indentation (@indent; $body) ))
+        if isnothing(eatwhitespace)
+            indentation, newline = parseresult
+            body = filterlinenodes(:( @indented($indentation, (@nextline; $body)); @nextline ))
+        end
         haveblock = true
     end
     if !isnothing(closingslash)
@@ -190,9 +195,9 @@ function parse_tag_stanza!(code, curindent, source; outerindent, dir)
         extendblock!(block, @nolinenodes quote
             @output $"<$tagname"
             $writeattributes(@io, attributes)
-            @output ">\n"
+            @output ">"
             $body
-            @nextline $"</$tagname>"
+            @output $"</$tagname>"
         end)
     else
         extendblock!(block, @nolinenodes quote

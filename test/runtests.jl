@@ -123,6 +123,16 @@ end
             %p.beans(food = "true") The magical fruit
             %h1.class.otherclass#id La La La
         """
+
+        @expandsto """
+        <blockquote><div>
+          Foo!
+        </div></blockquote>
+        """ haml"""
+        %blockquote<
+          %div
+            Foo!
+        """
     end
     @testset "Whitespace" begin
         @expandsto "" haml""
