@@ -162,9 +162,9 @@ function parse_tag_stanza!(code, curindent, source)
             $(?<newline>\v?)
         """mx
         expr = parse(source, code_to_parse)
-        code_for_inline_val = filterlinenodes(:( let val = $(esc(expr))
-            @htmlesc string(val)
-        end  ))
+        code_for_inline_val = @nolinenodes quote
+            @htmlesc string($(esc(expr)))
+        end
     elseif !isnothing(rest_of_line)
         code_for_inline_val = @nolinenodes quote
             @output $rest_of_line
