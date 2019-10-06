@@ -20,7 +20,7 @@ function deref(mod, expr)
     if expr isa Symbol
         return getproperty(mod, expr)
     elseif expr isa GlobalRef
-        return getproperty(expr.mod, expr.symbol)
+        return getproperty(expr.mod, expr.name)
     elseif expr isa Expr && expr.head == :.
         return deref(getproperty(mod, expr.args[1]), expr.args[2])
     elseif expr isa QuoteNode
