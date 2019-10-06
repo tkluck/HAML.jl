@@ -308,7 +308,7 @@ end
         @expandsto """
         Writing to @io
         """ haml"""
-        :include("hamljl/at-io.hamljl")
+        - @include("hamljl/at-io.hamljl")
         """
         # pending https://github.com/JuliaLang/julia/issues/32121#issuecomment-534982081
         #let attribute = :href # hygiene of the => operator inside a named tuple
@@ -373,7 +373,7 @@ end
           </body>
         </html>
         """ haml"""
-        :include("hamljl/hitchhiker.hamljl", question = "What's the answer to life, the universe, and everything?", answer = 42)
+        - @include("hamljl/hitchhiker.hamljl", question = "What's the answer to life, the universe, and everything?", answer = 42)
         """
 
         @expandsto """
@@ -383,7 +383,7 @@ end
           <p>Did you see the little button?</p>
         </form>
         """ haml"""
-        :include("hamljl/form.hamljl")
+        - @include("hamljl/form.hamljl")
         """
 
         let io = IOBuffer()  # test the render(...) entrypoint

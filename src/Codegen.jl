@@ -96,7 +96,7 @@ function extendblock!(block, expr)
     push!(block.args, expr)
 end
 
-function parse_tag_stanza!(code, curindent, source; outerindent, dir)
+function parse_tag_stanza!(code, curindent, source; outerindent)
     @mustcapture source "Expecting a tag name" r"(?:%(?<tagname>[A-Za-z0-9]+)?)?"
     tagname = something(tagname, "div")
 
@@ -173,7 +173,7 @@ function parse_tag_stanza!(code, curindent, source; outerindent, dir)
     end
 
     body = @nolinenodes quote end
-    parseresult = parse_indented_block!(body, curindent, source, outerindent=outerindent, dir=dir)
+    parseresult = parse_indented_block!(body, curindent, source, outerindent=outerindent)
     if isnothing(parseresult)
         haveblock = false
     else
@@ -218,7 +218,7 @@ function indentdiff(a, b)
     return a[1+length(b):end]
 end
 
-function parse_indented_block!(code, curindent, source; outerindent="", dir)
+function parse_indented_block!(code, curindent, source; outerindent="")
     controlflow_this = nothing
     controlflow_prev = nothing
     firstindent = nothing
@@ -244,7 +244,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", dir)
             elseif !isnothing(elseblock)
                 block = @nolinenodes quote end
                 push!(controlflow_prev.args, block)
-                parseresult = parse_indented_block!(block, indent, source, outerindent=outerindent, dir=dir)
+                parseresult = parse_indented_block!(block, indent, source, outerindent=outerindent)
                 if !isnothing(parseresult)
                     _, newline = parseresult
                 end
@@ -256,7 +256,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", dir)
             push!(code.args, LineNumberNode(source))
 
             if sigil in ("%", "#", ".")
-                newline = parse_tag_stanza!(code, indent, source, outerindent=outerindent, dir=dir)
+                newline = parse_tag_stanza!(code, indent, source, outerindent=outerindent)
             elseif sigil == "-#"
                 @mustcapture source "Expecting a comment" r"\h*(?<rest_of_line>.*)$(?<newline>\v?)"m
                 while indentlength(match(r"\A\h*", source).match) > indentlength(indent)
@@ -277,7 +277,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", dir)
                         !first && @nextline
                         first = false
                     end
-                    parseresult = parse_indented_block!(body_of_loop, indent, source, outerindent=outerindent, dir=dir)
+                    parseresult = parse_indented_block!(body_of_loop, indent, source, outerindent=outerindent)
                     if !isnothing(parseresult)
                         _, newline = parseresult
                     end
@@ -291,7 +291,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", dir)
                     block = parse(source, "$code_to_parse\nend", code_to_parse)
                     block.args[1] = esc(block.args[1])
                     extendblock!(code, block)
-                    parseresult = parse_indented_block!(block.args[2], indent, source, outerindent=outerindent, dir=dir)
+                    parseresult = parse_indented_block!(block.args[2], indent, source, outerindent=outerindent)
                     if !isnothing(parseresult)
                         _, newline = parseresult
                     end
@@ -303,7 +303,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", dir)
                         !first && @nextline
                         first = false
                     end
-                    parseresult = parse_indented_block!(body_of_fun, indent, source, outerindent=outerindent, dir=dir)
+                    parseresult = parse_indented_block!(body_of_fun, indent, source, outerindent=outerindent)
                     if !isnothing(parseresult)
                         _, newline = parseresult
                     end
@@ -344,7 +344,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", dir)
                     end)
                 else
                     body = @nolinenodes quote end
-                    parseresult = parse_indented_block!(body, indent, source, outerindent=outerindent, dir=dir)
+                    parseresult = parse_indented_block!(body, indent, source, outerindent=outerindent)
                     if !isnothing(parseresult)
                         indentation, newline = parseresult
                         body = filterlinenodes(:( @indented $indentation (@indent; $body) ))
@@ -365,7 +365,7 @@ function parse_indented_block!(code, curindent, source; outerindent="", dir)
                 filter_expr = parse(source, code_to_parse)
                 if filter_expr isa Expr && filter_expr.head == :call
                     extendblock!(code, @nolinenodes quote
-                        $hamlfilter(Val($(quot(filter_expr.args[1]))), @io, $dir, Val(Symbol($(outerindent * indent))), $(filter_expr.args[2:end]...))
+                        $hamlfilter(Val($(quot(filter_expr.args[1]))), @io, Val(Symbol($(outerindent * indent))), $(filter_expr.args[2:end]...))
                     end)
                 else
                     error(source, "Unrecognized filter: $filter_expr")
@@ -385,9 +385,9 @@ function parse_indented_block!(code, curindent, source; outerindent="", dir)
     end
 end
 
-function generate_haml_writer_codeblock(source; outerindent="", dir)
+function generate_haml_writer_codeblock(source; outerindent="")
     code = @nolinenodes quote end
-    parseresult = parse_indented_block!(code, nothing, source, outerindent=outerindent, dir=dir)
+    parseresult = parse_indented_block!(code, nothing, source, outerindent=outerindent)
     if isnothing(parseresult)
         return code
     else
@@ -401,16 +401,7 @@ function generate_haml_writer_codeblock(source; outerindent="", dir)
 end
 
 macro haml_str(source)
-    if isnothing(__source__.file)
-        rootdir = pwd()
-    else
-        rootdir = dirname(String(__source__.file))
-        if isempty(rootdir)
-            rootdir = pwd()
-        end
-    end
-
-    code = generate_haml_writer_codeblock(Source(source, __source__), dir=rootdir)
+    code = generate_haml_writer_codeblock(Source(source, __source__))
     code = replace_macro_hygienic(@__MODULE__, __module__, code, at_io => :io)
     code = materialize_indentation(code)
 

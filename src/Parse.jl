@@ -32,17 +32,32 @@ Base.isempty(s::Source) = s.ix > length(s.text)
 
 Base.match(needle::Regex, haystack::Source, args...; kwds...) = match(needle, SubString(haystack.text, haystack.ix), args...; kwds...)
 
+function _replace_dummy_linenodes(expr, origin::LineNumberNode)
+    if expr isa Expr && expr.head == :macrocall && expr.args[2].file == :none
+        delta = expr.args[2].line - 1
+        line = LineNumberNode(origin.line + delta, origin.file)
+        return Expr(:macrocall, expr.args[1], line, expr.args[3:end]...)
+    elseif expr isa Expr
+        args = map(a -> _replace_dummy_linenodes(a, origin), expr.args)
+        return Expr(expr.head, args...)
+    else
+        return expr
+    end
+end
+
 function Base.Meta.parse(s::Source; kwds...)
     expr, offset = Base.Meta.parse(s.text, s.ix; kwds...)
+    expr = _replace_dummy_linenodes(expr, LineNumberNode(s))
     advance!(s, offset - s.ix)
     expr
 end
 
 function Base.Meta.parse(s::Source, snippet::AbstractString, snippet_location::SubString = snippet; raise=true, kwds...)
     @assert snippet_location.string == s.text
+    ix = snippet_location.offset + 1
     expr = Base.Meta.parse(snippet; raise=false, kwds...)
+    expr = _replace_dummy_linenodes(expr, LineNumberNode(s, ix))
     if raise && expr isa Expr && expr.head == :error
-        ix = snippet_location.offset + 1
         error(s, ix, expr.args[1])
     end
     expr

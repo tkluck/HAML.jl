@@ -55,7 +55,7 @@ We don't have a syntax reference for `HAML.jl` yet. It mostly follows
 the following exceptions:
 
  - use named tuple syntax for attributes
- - use `:include` for including `.hamljl` files.
+ - use `- @include` for including `.hamljl` files.
 
  See the [test cases](test/runtests.jl) for examples.
 
