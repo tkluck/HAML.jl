@@ -426,8 +426,7 @@ macro indent()
 end
 
 macro htmlesc(expr...)
-    expr = map(esc, expr)
-    :( htmlesc(@io, $(expr...)) )
+    :( @output $htmlesc($(expr...)) )
 end
 
 const at_io = getproperty(@__MODULE__, Symbol("@io"))

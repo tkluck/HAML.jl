@@ -28,7 +28,7 @@ module Generated end
 function render end
 
 module_template(dir) = quote
-    import HAML: @io, @include
+    import HAML: @io, @output, @include
     macro __DIR__()
         $dir
     end

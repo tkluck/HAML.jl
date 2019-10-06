@@ -302,13 +302,13 @@ end
         Bye!
         """ haml"""
         Hi!
-        - write(@io, "Hello!\n")
-        - write(@HAML.io, "Bye!\n")
+        - @output "Hello!\n"
+        - @HAML.output "Bye!\n"
         """
         @expandsto """
-        Writing to @io
+        Using the @output macro
         """ haml"""
-        - @include("hamljl/at-io.hamljl")
+        - @include("hamljl/at-output.hamljl")
         """
         # pending https://github.com/JuliaLang/julia/issues/32121#issuecomment-534982081
         #let attribute = :href # hygiene of the => operator inside a named tuple
