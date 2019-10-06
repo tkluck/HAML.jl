@@ -1,7 +1,6 @@
 module Templates
 
 import HAML
-import HAML: hamlfilter
 
 import ..Hygiene: replace_macro_hygienic, make_hygienic, invert_escaping, replace_interpolations
 import ..Parse: Source

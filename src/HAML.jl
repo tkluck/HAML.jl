@@ -1,8 +1,6 @@
 @doc read(open(joinpath(@__DIR__, "..", "README.md")), String)
 module HAML
 
-function hamlfilter end
-
 include("Hygiene.jl")
 include("Parse.jl")
 include("Codegen.jl")

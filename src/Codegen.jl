@@ -5,7 +5,6 @@ import Base.Meta: parse, quot
 import DataStructures: OrderedDict
 import Markdown: htmlesc
 
-import HAML: hamlfilter
 import ..Hygiene: replace_macro_hygienic, deref
 import ..Parse: @capture, @mustcapture, Source
 
@@ -235,8 +234,8 @@ function parse_indented_block!(code, curindent, source)
             (?:
               (?<elseblock>-\h*else\h*$\v?)
               |
-              (?=(?<sigil>%|\#|\.|-\#|-|=|\\|/|:|!!!))? # stanza type
-              (?:-\#|-|=|\\|/|:|!!!)?                   # consume these stanza types
+              (?=(?<sigil>%|\#|\.|-\#|-|=|\\|/|!!!))? # stanza type
+              (?:-\#|-|=|\\|/|!!!)?                   # consume these stanza types
             )
         """xm
             if isnothing(firstindent)
@@ -355,22 +354,6 @@ function parse_indented_block!(code, curindent, source)
                         end)
                     end
                 end
-            elseif sigil == ":"
-                @mustcapture source "Expecting an expression" r"""
-                    (?<code_to_parse>
-                        (?:.*|,\h*\v)*
-                    )
-                    $(?<newline>\v?)
-                """mx
-                filter_expr = parse(source, code_to_parse)
-                if filter_expr isa Expr && filter_expr.head == :call
-                    extendblock!(code, @nolinenodes quote
-                        $hamlfilter(Val($(quot(filter_expr.args[1]))), @io, Val(Symbol($indent)), $(filter_expr.args[2:end]...))
-                    end)
-                else
-                    error(source, "Unrecognized filter: $filter_expr")
-                end
-                newline = ""
             elseif sigil == "!!!"
                 @mustcapture source "Only support '!!! 5'" r"\h*5\h*$(?<newline>\v?)"m
                 extendblock!(code, @nolinenodes quote
