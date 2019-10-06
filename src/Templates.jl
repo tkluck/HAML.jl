@@ -58,7 +58,7 @@ end
     usermod = getmodule(FR())
     source = read(open(FR()), String)
     sourceref = LineNumberNode(1, Symbol(FR()))
-    code = generate_haml_writer_codeblock(Source(source, sourceref), outerindent=string(indent))
+    code = generate_haml_writer_codeblock(Source(source, sourceref))
     code = replace_macro_hygienic(HAML.Codegen, usermod, code, at_io => :io)
     code = Expr(:hamlindented, string(indent), code)
     code = materialize_indentation(code)

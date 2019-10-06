@@ -96,7 +96,7 @@ function extendblock!(block, expr)
     push!(block.args, expr)
 end
 
-function parse_tag_stanza!(code, curindent, source; outerindent)
+function parse_tag_stanza!(code, curindent, source)
     @mustcapture source "Expecting a tag name" r"(?:%(?<tagname>[A-Za-z0-9]+)?)?"
     tagname = something(tagname, "div")
 
@@ -173,7 +173,7 @@ function parse_tag_stanza!(code, curindent, source; outerindent)
     end
 
     body = @nolinenodes quote end
-    parseresult = parse_indented_block!(body, curindent, source, outerindent=outerindent)
+    parseresult = parse_indented_block!(body, curindent, source)
     if isnothing(parseresult)
         haveblock = false
     else
@@ -218,7 +218,7 @@ function indentdiff(a, b)
     return a[1+length(b):end]
 end
 
-function parse_indented_block!(code, curindent, source; outerindent="")
+function parse_indented_block!(code, curindent, source)
     controlflow_this = nothing
     controlflow_prev = nothing
     firstindent = nothing
@@ -244,7 +244,7 @@ function parse_indented_block!(code, curindent, source; outerindent="")
             elseif !isnothing(elseblock)
                 block = @nolinenodes quote end
                 push!(controlflow_prev.args, block)
-                parseresult = parse_indented_block!(block, indent, source, outerindent=outerindent)
+                parseresult = parse_indented_block!(block, indent, source)
                 if !isnothing(parseresult)
                     _, newline = parseresult
                 end
@@ -256,7 +256,7 @@ function parse_indented_block!(code, curindent, source; outerindent="")
             push!(code.args, LineNumberNode(source))
 
             if sigil in ("%", "#", ".")
-                newline = parse_tag_stanza!(code, indent, source, outerindent=outerindent)
+                newline = parse_tag_stanza!(code, indent, source)
             elseif sigil == "-#"
                 @mustcapture source "Expecting a comment" r"\h*(?<rest_of_line>.*)$(?<newline>\v?)"m
                 while indentlength(match(r"\A\h*", source).match) > indentlength(indent)
@@ -277,7 +277,7 @@ function parse_indented_block!(code, curindent, source; outerindent="")
                         !first && @nextline
                         first = false
                     end
-                    parseresult = parse_indented_block!(body_of_loop, indent, source, outerindent=outerindent)
+                    parseresult = parse_indented_block!(body_of_loop, indent, source)
                     if !isnothing(parseresult)
                         _, newline = parseresult
                     end
@@ -291,7 +291,7 @@ function parse_indented_block!(code, curindent, source; outerindent="")
                     block = parse(source, "$code_to_parse\nend", code_to_parse)
                     block.args[1] = esc(block.args[1])
                     extendblock!(code, block)
-                    parseresult = parse_indented_block!(block.args[2], indent, source, outerindent=outerindent)
+                    parseresult = parse_indented_block!(block.args[2], indent, source)
                     if !isnothing(parseresult)
                         _, newline = parseresult
                     end
@@ -303,7 +303,7 @@ function parse_indented_block!(code, curindent, source; outerindent="")
                         !first && @nextline
                         first = false
                     end
-                    parseresult = parse_indented_block!(body_of_fun, indent, source, outerindent=outerindent)
+                    parseresult = parse_indented_block!(body_of_fun, indent, source)
                     if !isnothing(parseresult)
                         _, newline = parseresult
                     end
@@ -344,7 +344,7 @@ function parse_indented_block!(code, curindent, source; outerindent="")
                     end)
                 else
                     body = @nolinenodes quote end
-                    parseresult = parse_indented_block!(body, indent, source, outerindent=outerindent)
+                    parseresult = parse_indented_block!(body, indent, source)
                     if !isnothing(parseresult)
                         indentation, newline = parseresult
                         body = filterlinenodes(:( @indented $indentation (@indent; $body) ))
@@ -365,7 +365,7 @@ function parse_indented_block!(code, curindent, source; outerindent="")
                 filter_expr = parse(source, code_to_parse)
                 if filter_expr isa Expr && filter_expr.head == :call
                     extendblock!(code, @nolinenodes quote
-                        $hamlfilter(Val($(quot(filter_expr.args[1]))), @io, Val(Symbol($(outerindent * indent))), $(filter_expr.args[2:end]...))
+                        $hamlfilter(Val($(quot(filter_expr.args[1]))), @io, Val(Symbol($indent)), $(filter_expr.args[2:end]...))
                     end)
                 else
                     error(source, "Unrecognized filter: $filter_expr")
@@ -385,9 +385,9 @@ function parse_indented_block!(code, curindent, source; outerindent="")
     end
 end
 
-function generate_haml_writer_codeblock(source; outerindent="")
+function generate_haml_writer_codeblock(source)
     code = @nolinenodes quote end
-    parseresult = parse_indented_block!(code, nothing, source, outerindent=outerindent)
+    parseresult = parse_indented_block!(code, nothing, source)
     if isnothing(parseresult)
         return code
     else
