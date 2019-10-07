@@ -8,6 +8,9 @@ import Markdown: htmlesc
 import ..Hygiene: replace_macro_hygienic, deref
 import ..Parse: @capture, @mustcapture, Source
 
+include("Attributes.jl")
+import .Attributes: mergeattributes, writeattributes
+
 function filterlinenodes(expr)
     if expr isa Expr && expr.head == :block
         args = filter(e -> !(e isa LineNumberNode), expr.args)
@@ -43,47 +46,6 @@ function materialize_indentation(expr, cur="")
     end
 end
 
-function makeattr(name, val)
-    ignore(x) = isnothing(x) || x === false
-    val = filter(!ignore, [val;])
-    isempty(val) && return (false, nothing, nothing)
-
-    if name == :class
-        value = join(val, " ")
-    elseif name == :id
-        value = join(val, "-")
-    else
-        ix = findlast(!ignore, val)
-        value = val[ix]
-    end
-    if value === true
-        valuerepr = string(name)
-    else
-        valuerepr = string(value)
-    end
-    namerepr = replace(string(name), "_" => "-")
-    return (true, htmlesc(namerepr), htmlesc(valuerepr))
-end
-
-join_attr_name(x...) = Symbol(join(x, "-"))
-recurse_attributes(x, path...) = (join_attr_name(path...) => x,)
-recurse_attributes(x::Pair, path...) = recurse_attributes(x[2], path..., x[1])
-recurse_attributes(x::Union{NamedTuple,AbstractDict}, path...) = (attr for pair in pairs(x) for attr in recurse_attributes(pair, path...))
-recurse_attributes(x::AbstractVector, path...) = (attr for pair in x for attr in recurse_attributes(pair, path...))
-
-function writeattributes(io, attributes)
-    collected_attributes = OrderedDict()
-    for (name, value) in recurse_attributes(attributes)
-        a = get!(Vector, collected_attributes, name)
-        append!(a, [value;])
-    end
-    for (name, value) in pairs(collected_attributes)
-        (valid, name, value) = makeattr(name, value)
-        valid || continue
-        write(io, " ", name, "='", value, "'")
-    end
-end
-
 function extendblock!(block, expr)
     @assert block isa Expr && block.head == :block
     if expr isa Expr && expr.head == :block
@@ -99,9 +61,7 @@ function parse_tag_stanza!(code, curindent, source)
     @mustcapture source "Expecting a tag name" r"(?:%(?<tagname>[A-Za-z0-9]+)?)?"
     tagname = something(tagname, "div")
 
-    let_block = :( let attributes = []; end )
-    push!(code.args, let_block)
-    block = let_block.args[2]
+    attr = OrderedDict()
     while @capture source r"""
         (?=(?<openbracket>\())
         |
@@ -111,31 +71,26 @@ function parse_tag_stanza!(code, curindent, source)
         )
     """x
         if !isnothing(openbracket)
-            attributes_tuple_expr = parse(source, greedy=false)
-            if attributes_tuple_expr.head == :(=)
-                attributes_tuple_expr = :( ($attributes_tuple_expr,) )
+            attr_expr = parse(source, greedy=false)
+            if attr_expr.head == :(=) || attr_expr.head == :...
+                attr_expr = :( ($attr_expr,) )
+            elseif attr_expr.head == :call && attr_expr.args[1] == :(=>)
+                attr_expr = :( ($attr_expr,) )
             end
-            extendblock!(block, @nolinenodes quote
-                let attributes_tuple = $(esc(attributes_tuple_expr))
-                    for (attr, value) in pairs(attributes_tuple)
-                        push!(attributes, attr => value)
-                    end
-                end
-            end)
+            attr_expr.head == :tuple || error(source, "Expecting key=value expression")
+            attr = mergeattributes(attr, attr_expr.args...)
         else
             if sigil == "."
-                extendblock!(block, @nolinenodes quote
-                    push!(attributes, :class => $value)
-                end)
+                attr = mergeattributes(attr, :class => value)
             elseif sigil == "#"
-                extendblock!(block, @nolinenodes quote
-                    push!(attributes, :id => $value)
-                end)
+                attr = mergeattributes(attr, :id    => value)
             else
                 error(source, "Unknown sigil: $sigil")
             end
         end
     end
+
+    attr = writeattributes(attr)
 
     @mustcapture source "Expecting '<', '=', '/', or whitespace" r"""
         (?<eatwhitespace>\<)?
@@ -184,24 +139,24 @@ function parse_tag_stanza!(code, curindent, source)
     end
     if !isnothing(closingslash)
         @assert isnothing(code_for_inline_val)
-        extendblock!(block, @nolinenodes quote
+        extendblock!(code, @nolinenodes quote
             @output $"<$tagname"
-            $writeattributes(@io, attributes)
+            $attr
             @output $" />"
         end)
     elseif haveblock
         @assert isnothing(code_for_inline_val)
-        extendblock!(block, @nolinenodes quote
+        extendblock!(code, @nolinenodes quote
             @output $"<$tagname"
-            $writeattributes(@io, attributes)
+            $attr
             @output ">"
             $body
             @output $"</$tagname>"
         end)
     else
-        extendblock!(block, @nolinenodes quote
+        extendblock!(code, @nolinenodes quote
             @output $"<$tagname"
-            $writeattributes(@io, attributes)
+            $attr
             @output ">"
             $code_for_inline_val
             @output $"</$tagname>"
