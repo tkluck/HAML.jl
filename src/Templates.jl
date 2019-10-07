@@ -27,11 +27,8 @@ module Generated end
 
 function render end
 
-module_template(dir) = quote
+const module_template = quote
     import HAML: @io, @output, @include
-    macro __DIR__()
-        $dir
-    end
 end
 
 function getmodule(filerevision)
@@ -39,7 +36,7 @@ function getmodule(filerevision)
     try
         return getproperty(Generated, name)
     catch
-        Base.eval(Generated, :( module $name; $(module_template(dirname(filerevision))); end ))
+        Base.eval(Generated, :( module $name; $module_template; end ))
         return getproperty(Generated, name)
     end
 end
