@@ -46,6 +46,17 @@ function materialize_indentation(expr, cur="")
     end
 end
 
+extendoutput!(output) = output
+
+function extendoutput!(output, x, xs...)
+    if !isempty(output) && output[end] isa AbstractString && x isa AbstractString
+        output[end] *= x
+    else
+        push!(output, x)
+    end
+    extendoutput!(output, xs...)
+end
+
 function extendblock!(block, expr)
     @assert block isa Expr && block.head == :block
     if expr isa Expr && expr.head == :block
@@ -53,6 +64,12 @@ function extendblock!(block, expr)
             extendblock!(block, e)
         end
         return
+    elseif expr isa Expr && expr.head == :macrocall && expr.args[1] == Symbol("@output")
+        prev = block.args[end]
+        if prev isa Expr && prev.head == :macrocall && prev.args[1] == Symbol("@output")
+            extendoutput!(prev.args, expr.args[3:end]...)
+            return
+        end
     end
     push!(block.args, expr)
 end
