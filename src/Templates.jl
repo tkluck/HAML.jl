@@ -50,7 +50,7 @@ function FileRevision(dirname, basename)
     end
 end
 
-@generated function writehaml(io::IO, ::FR, ::Val{indent}; variables...) where FR <: FileRevision where indent
+@generated function render(io::IO, ::FR, ::Val{indent}; variables...) where FR <: FileRevision where indent
     usermod = getmodule(FR())
     source = read(open(FR()), String)
     sourceref = LineNumberNode(1, Symbol(FR()))
@@ -70,7 +70,7 @@ end
 function render(io::IO, basename::AbstractString, dirname::AbstractString; indent=Val(Symbol("")), variables=())
     fr = FileRevision(dirname, basename)
     getmodule(fr)
-    return Base.invokelatest(writehaml, io, fr, indent; variables...)
+    return render(io, fr, indent; variables...)
 end
 
 function render(io::IO, path::AbstractString; kwds...)
