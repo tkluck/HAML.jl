@@ -6,6 +6,11 @@ end
 
 const at_hygienic = getproperty(@__MODULE__, Symbol("@hygienic"))
 
+function make_hygienic(outermod, expr)
+    dummy_linenode = LineNumberNode(@__LINE__, @__FILE__)
+    return macroexpand(outermod, Expr(:macrocall, at_hygienic, dummy_linenode, expr), recursive=false)
+end
+
 function hasmacrocall(expr)
     if expr isa Expr && expr.head == :macrocall
         return true
@@ -15,24 +20,6 @@ function hasmacrocall(expr)
         return false
     end
 end
-
-function deref(mod, expr)
-    if expr isa Symbol
-        return getproperty(mod, expr)
-    elseif expr isa GlobalRef
-        return getproperty(expr.mod, expr.name)
-    elseif expr isa Expr && expr.head == :.
-        return deref(getproperty(mod, expr.args[1]), expr.args[2])
-    elseif expr isa QuoteNode
-        return deref(mod, expr.value)
-    else
-        dump(expr)
-        error("Don't know how to de-reference $expr")
-    end
-end
-
-replacement(f::Function, args...) = f(args...)
-replacement(item, args...) = item
 
 function _replace_expression_nodes_unescaped(f, head, expr, should_escape)
     if expr isa Expr && expr.head == head
@@ -88,11 +75,6 @@ function expand_macros_hygienic(outermod, innermod, expr)
         expr = _expand_macros_hygienic(outermod, innermod, expr)
     end
     return expr
-end
-
-function make_hygienic(outermod, expr)
-    dummy_linenode = LineNumberNode(@__LINE__, @__FILE__)
-    return macroexpand(outermod, Expr(:macrocall, at_hygienic, dummy_linenode, expr), recursive=false)
 end
 
 function _invert_escaping(expr)

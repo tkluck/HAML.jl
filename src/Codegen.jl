@@ -5,7 +5,7 @@ import Base.Meta: parse, quot
 import DataStructures: OrderedDict
 import Markdown: htmlesc
 
-import ..Hygiene: expand_macros_hygienic, deref, replace_expression_nodes_unescaped, hasnode
+import ..Hygiene: expand_macros_hygienic, replace_expression_nodes_unescaped, hasnode
 import ..Parse: @capture, @mustcapture, Source
 
 include("Attributes.jl")
@@ -421,11 +421,6 @@ macro indented(indentation, expr)
     Expr(:hamlindented, esc(indentation), esc(expr))
 end
 
-macro nextline(expr...)
-    expr = map(esc, expr)
-    :( @output "\n" @indentation() $(expr...) )
-end
-
 macro output(expr...)
     expr = map(esc, expr)
     Expr(:hamloutput, expr...)
@@ -433,6 +428,11 @@ end
 
 macro indent()
     :( @output @indentation )
+end
+
+macro nextline(expr...)
+    expr = map(esc, expr)
+    :( @output "\n" @indentation() $(expr...) )
 end
 
 macro htmlesc(expr...)
