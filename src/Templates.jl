@@ -56,7 +56,6 @@ end
     sourceref = LineNumberNode(1, Symbol(FR()))
     code = generate_haml_writer_codeblock(usermod, Source(source, sourceref), string(indent))
     code = replace_expression_nodes_unescaped(:hamloutput, code) do (args...)
-        args = map(esc, args)
         :( write(io, $(args...)) )
     end
     code = replace_expression_nodes_unescaped(:hamlio, code) do

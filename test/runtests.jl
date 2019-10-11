@@ -408,4 +408,22 @@ end
             """ == String(take!(io))
         end
     end
+
+    @testset "File/line information" begin
+        line = @__LINE__
+        @expandsto """
+        <ul>
+          <li>$(line +  9)</li>
+          <li>$(line + 10)</li>
+          <li>$(line + 11)</li>
+        </ul>
+        """ haml"""
+        %ul
+          %li= @__LINE__
+          %li= @__LINE__
+          %li= @__LINE__
+        """
+
+        @test haml"= @__FILE__" == @__FILE__
+    end
 end

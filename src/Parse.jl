@@ -56,7 +56,8 @@ function Base.Meta.parse(s::Source, snippet::AbstractString, snippet_location::S
     @assert snippet_location.string == s.text
     ix = snippet_location.offset + 1
     expr = Base.Meta.parse(snippet; raise=false, kwds...)
-    expr = _replace_dummy_linenodes(expr, LineNumberNode(s, ix))
+    loc = LineNumberNode(s, ix)
+    expr = _replace_dummy_linenodes(expr, loc)
     if raise && expr isa Expr && expr.head == :error
         error(s, ix, expr.args[1])
     end
