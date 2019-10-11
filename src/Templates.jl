@@ -2,9 +2,9 @@ module Templates
 
 import HAML
 
-import ..Hygiene: replace_macro_hygienic, make_hygienic, invert_escaping, replace_interpolations
+import ..Hygiene: make_hygienic, invert_escaping, replace_expression_nodes_unescaped
 import ..Parse: Source
-import ..Codegen: generate_haml_writer_codeblock, at_io, materialize_indentation
+import ..Codegen: generate_haml_writer_codeblock
 
 struct FileRevision{Dir, Basename, MTime} end
 
@@ -54,13 +54,17 @@ end
     usermod = getmodule(FR())
     source = read(open(FR()), String)
     sourceref = LineNumberNode(1, Symbol(FR()))
-    code = generate_haml_writer_codeblock(Source(source, sourceref))
-    code = replace_macro_hygienic(HAML.Codegen, usermod, code, at_io => :io)
-    code = Expr(:hamlindented, string(indent), code)
-    code = materialize_indentation(code)
-    code = replace_interpolations(code) do sym
+    code = generate_haml_writer_codeblock(usermod, Source(source, sourceref), string(indent))
+    code = replace_expression_nodes_unescaped(:hamloutput, code) do (args...)
+        args = map(esc, args)
+        :( write(io, $(args...)) )
+    end
+    code = replace_expression_nodes_unescaped(:hamlio, code) do
+        :io
+    end
+    code = replace_expression_nodes_unescaped(:$, code) do sym
         sym isa Symbol || error("Can only use variables as interpolations")
-        :( $(esc(:variables)).data.$sym )
+        :( variables.data.$sym )
     end
     code = invert_escaping(code)
     code = make_hygienic(usermod, code)

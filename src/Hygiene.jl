@@ -34,17 +34,15 @@ end
 replacement(f::Function, args...) = f(args...)
 replacement(item, args...) = item
 
-function _replace_macro_and_escape_rest(mod, expr, substitutions...)
-    if expr isa Expr && expr.head == :macrocall
-        for (before, after) in substitutions
-            if deref(mod, expr.args[1]) == before
-                return replacement(after, expr.args[3:end]...), false
-            end
-        end
-        return macroexpand(mod, expr, recursive=false), true
+function _replace_expression_nodes_unescaped(f, head, expr, should_escape)
+    if expr isa Expr && expr.head == head
+        return f(expr.args...), false
+    elseif expr isa Expr && expr.head == :escape
+        res, should_escape = _replace_expression_nodes_unescaped(f, head, expr.args[1], true)
+        return res, should_escape
     elseif expr isa Expr
         result = map(expr.args) do a
-            _replace_macro_and_escape_rest(mod, a, substitutions...)
+            _replace_expression_nodes_unescaped(f, head, a, should_escape)
         end
         if all(r -> r[2], result)
             args = map(r -> r[1], result)
@@ -58,24 +56,26 @@ function _replace_macro_and_escape_rest(mod, expr, substitutions...)
         end
         return Expr(expr.head, args...), should_escape
     else
-        return expr, true
+        return expr, should_escape
     end
 end
 
-function _replace_macro_hygienic(outermod, innermod, expr, substitutions...)
+function replace_expression_nodes_unescaped(f, head, expr)
+    expr, should_escape = _replace_expression_nodes_unescaped(f, head, expr, false)
+    return should_escape ? esc(expr) : expr
+end
+
+function _expand_macros_hygienic(outermod, innermod, expr)
     if expr isa Expr && expr.head == :macrocall
-        for (before, after) in substitutions
-            if deref(outermod, expr.args[1]) == before
-                return replacement(after, expr.args[3:end]...)
-            end
-        end
         return macroexpand(outermod, expr, recursive=false)
     elseif expr isa Expr && expr.head == :escape
-        e, should_escape = _replace_macro_and_escape_rest(innermod, expr.args[1], substitutions...)
-        return should_escape ? esc(e) : e
+        # FIXME: not sure if we should traverse multiple levels of escaping,
+        # but if we don't we risk an infinite loop in while hasmacrocall(...)
+        # below.
+        return esc(_expand_macros_hygienic(innermod, innermod, expr.args[1]))
     elseif expr isa Expr
         args = map(expr.args) do a
-            _replace_macro_hygienic(outermod, innermod, a, substitutions...)
+            _expand_macros_hygienic(outermod, innermod, a)
         end
         return Expr(expr.head, args...)
     else
@@ -83,9 +83,9 @@ function _replace_macro_hygienic(outermod, innermod, expr, substitutions...)
     end
 end
 
-function replace_macro_hygienic(outermod, innermod, expr, substitutions...)
+function expand_macros_hygienic(outermod, innermod, expr)
     while hasmacrocall(expr)
-        expr = _replace_macro_hygienic(outermod, innermod, expr, substitutions...)
+        expr = _expand_macros_hygienic(outermod, innermod, expr)
     end
     return expr
 end
@@ -127,14 +127,8 @@ function invert_escaping(expr)
     return should_escape ? esc(expr) : expr
 end
 
-function replace_interpolations(f, expr)
-    !(expr isa Expr) && return expr
-    if expr.head == :$
-        return f(expr.args...)
-    else
-        return Expr(expr.head, map(a -> replace_interpolations(f, a), expr.args)...)
-    end
-end
-
+hasnode(head, expr) = expr isa Expr ?
+                        expr.head == head || any(a -> hasnode(head, a), expr.args) :
+                        false
 
 end # module

@@ -5,7 +5,7 @@ import Base.Meta: parse, quot
 import DataStructures: OrderedDict
 import Markdown: htmlesc
 
-import ..Hygiene: replace_macro_hygienic, deref
+import ..Hygiene: expand_macros_hygienic, deref, replace_expression_nodes_unescaped, hasnode
 import ..Parse: @capture, @mustcapture, Source
 
 include("Attributes.jl")
@@ -36,7 +36,7 @@ indentlength(::Nothing) = -1
 function materialize_indentation(expr, cur="")
     if expr isa Expr && expr.head == :hamlindented
         return materialize_indentation(expr.args[2], cur * expr.args[1])
-    elseif expr isa Indentation
+    elseif expr isa Expr && expr.head == :hamlindentation
         return cur
     elseif expr isa Expr
         args = map(a -> materialize_indentation(a, cur), expr.args)
@@ -340,27 +340,68 @@ function parse_indented_block!(code, curindent, source)
     end
 end
 
-function generate_haml_writer_codeblock(source)
-    code = @nolinenodes quote end
-    parseresult = parse_indented_block!(code, nothing, source)
-    if isnothing(parseresult)
-        return code
-    else
-        indentation, newline = parseresult
-        return @nolinenodes quote
-            @output $indentation
-            $code
-            @output $newline
+isoutput(expr) = expr isa Expr && expr.head == :hamloutput
+
+function merge_outputs(expr)
+    if expr isa Expr && expr.head == :block
+        expr = Expr(expr.head, expr.args...)
+        prev = nothing
+        filter!(expr.args) do a
+            if isoutput(prev) && isoutput(a)
+                append!(prev.args, a.args)
+                keep = false
+            elseif a isa LineNumberNode
+                keep = true
+            else
+                prev = a
+                keep = true
+            end
+            keep
         end
+        return expr
+    elseif expr isa Expr
+        args = map(merge_outputs, expr.args)
+        return Expr(expr.head, args...)
+    else
+        return expr
     end
 end
 
-macro haml_str(source)
-    code = generate_haml_writer_codeblock(Source(source, __source__))
-    code = replace_macro_hygienic(@__MODULE__, __module__, code, at_io => :io)
+function generate_haml_writer_codeblock(usermod, source, extraindent="")
+    code = @nolinenodes quote end
+    parseresult = parse_indented_block!(code, nothing, source)
+    if !isnothing(parseresult)
+        indentation, newline = parseresult
+        code = @nolinenodes quote
+            @output $indentation
+            $(code.args...)
+            @output $newline
+        end
+    end
+    code = expand_macros_hygienic(@__MODULE__, usermod, code)
+    code = Expr(:hamlindented, extraindent, code)
     code = materialize_indentation(code)
+    code = merge_outputs(code)
+    return code
+end
 
-    @nolinenodes quote
+macro haml_str(source)
+    code = generate_haml_writer_codeblock(__module__, Source(source, __source__))
+
+    if code.head == :block
+        actions = filter(a -> !(a isa LineNumberNode), code.args)
+        if length(actions) == 1 && actions[1].head == :hamloutput && !hasnode(:hamlio, code)
+            return Expr(:string, actions[1].args...)
+        end
+    end
+
+    code = replace_expression_nodes_unescaped(:hamloutput, code) do (args...)
+        :( write(io, $(args...)) )
+    end
+    code = replace_expression_nodes_unescaped(:hamlio, code) do
+        :io
+    end
+    return @nolinenodes quote
         io = IOBuffer()
         $code
         String(take!(io))
@@ -368,14 +409,11 @@ macro haml_str(source)
 end
 
 macro io()
-    error("The @io macro can only be used from within a HAML template")
-end
-
-mutable struct Indentation
+    Expr(:hamlio)
 end
 
 macro indentation()
-    Indentation()
+    Expr(:hamlindentation)
 end
 
 
@@ -390,7 +428,7 @@ end
 
 macro output(expr...)
     expr = map(esc, expr)
-    :( write(@io, $(expr...)) )
+    Expr(:hamloutput, expr...)
 end
 
 macro indent()
@@ -400,7 +438,5 @@ end
 macro htmlesc(expr...)
     :( @output $htmlesc($(expr...)) )
 end
-
-const at_io = getproperty(@__MODULE__, Symbol("@io"))
 
 end # module
