@@ -426,4 +426,21 @@ end
 
         @test haml"= @__FILE__" == @__FILE__
     end
+
+    @testset "Compile-time expansion where possible" begin
+        @macroexpand(haml"""
+        %p Hallo
+        """) isa String
+
+        @macroexpand(haml"""
+        !!! 5
+        %html
+          %head
+            %title= title
+          %body
+            %ul
+              %li= item1
+              %li= item2
+        """).head == :string
+    end
 end

@@ -52,7 +52,7 @@ function Base.Meta.parse(s::Source; kwds...)
     expr
 end
 
-function Base.Meta.parse(s::Source, snippet::AbstractString, snippet_location::SubString = snippet; raise=true, kwds...)
+function Base.Meta.parse(s::Source, snippet::AbstractString, snippet_location::SubString = snippet; raise=true, with_linenode=true, kwds...)
     @assert snippet_location.string == s.text
     ix = snippet_location.offset + 1
     expr = Base.Meta.parse(snippet; raise=false, kwds...)
@@ -61,7 +61,7 @@ function Base.Meta.parse(s::Source, snippet::AbstractString, snippet_location::S
     if raise && expr isa Expr && expr.head == :error
         error(s, ix, expr.args[1])
     end
-    expr
+    return with_linenode ? Expr(:block, loc, expr) : expr
 end
 
 Base.error(s::Source, msg) = error(s, s.ix, msg)
