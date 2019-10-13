@@ -4,7 +4,7 @@ import HAML
 
 import ..Hygiene: make_hygienic, invert_escaping, replace_expression_nodes_unescaped
 import ..Parse: Source
-import ..Codegen: generate_haml_writer_codeblock
+import ..Codegen: generate_haml_writer_codeblock, replace_output_nodes
 
 struct FileRevision{Dir, Basename, MTime} end
 
@@ -55,12 +55,7 @@ end
     source = read(open(FR()), String)
     sourceref = LineNumberNode(1, Symbol(FR()))
     code = generate_haml_writer_codeblock(usermod, Source(source, sourceref), string(indent))
-    code = replace_expression_nodes_unescaped(:hamloutput, code) do (args...)
-        :( write(io, $(args...)) )
-    end
-    code = replace_expression_nodes_unescaped(:hamlio, code) do
-        :io
-    end
+    code = replace_output_nodes(code, :io)
     code = replace_expression_nodes_unescaped(:$, code) do sym
         sym isa Symbol || error("Can only use variables as interpolations")
         :( variables.data.$sym )

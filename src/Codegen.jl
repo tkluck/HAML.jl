@@ -391,6 +391,16 @@ function generate_haml_writer_codeblock(usermod, source, extraindent="")
     return code
 end
 
+function replace_output_nodes(code, io)
+    code = replace_expression_nodes_unescaped(:hamloutput, code) do (args...)
+        :( write($io, $(args...)) )
+    end
+    code = replace_expression_nodes_unescaped(:hamlio, code) do
+        io
+    end
+    return code
+end
+
 macro haml_str(source)
     # FIXME: off-by-one because triple-quoted haml""" has its
     # first character on the next line.
@@ -401,12 +411,8 @@ macro haml_str(source)
         return Expr(:string, code.args...)
     end
 
-    code = replace_expression_nodes_unescaped(:hamloutput, code) do (args...)
-        :( write(io, $(args...)) )
-    end
-    code = replace_expression_nodes_unescaped(:hamlio, code) do
-        :io
-    end
+    code = replace_output_nodes(code, :io)
+
     return @nolinenodes quote
         io = IOBuffer()
         $code
