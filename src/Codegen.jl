@@ -393,7 +393,13 @@ end
 
 function replace_output_nodes(code, io)
     code = replace_expression_nodes_unescaped(:hamloutput, code) do (args...)
-        :( write($io, $(args...)) )
+        write_statements = map(args) do a
+            # each in its own statement; no need to put everything on the
+            # stack before starting sending stuff out on the io. (By this
+            # this, static strings have already been concatenated.)
+            :( write($io, $a) )
+        end
+        Expr(:block, write_statements...)
     end
     code = replace_expression_nodes_unescaped(:hamlio, code) do
         io
