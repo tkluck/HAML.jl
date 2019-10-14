@@ -6,7 +6,7 @@ import DataStructures: OrderedDict
 import Markdown: htmlesc
 
 import ..Hygiene: expand_macros_hygienic, replace_expression_nodes_unescaped, hasnode
-import ..Parse: @capture, @mustcapture, Source
+import ..Parse: @capture, @mustcapture, Source, parse_contentline
 
 include("Attributes.jl")
 import .Attributes: mergeattributes, writeattributes
@@ -98,12 +98,7 @@ function parse_tag_stanza!(code, curindent, source)
             (?<equalssign>\=)
             |
             (?<closingslash>/)?
-            (?:
-              \h+
-              (?<rest_of_line>.+)
-            )?
-            $
-            (?<newline>\v*)
+            (?:\h*)
         )
     """mx
 
@@ -120,10 +115,8 @@ function parse_tag_stanza!(code, curindent, source)
         code_for_inline_val = @nolinenodes quote
             @htmlesc string($(esc(expr)))
         end
-    elseif !isnothing(rest_of_line)
-        code_for_inline_val = @nolinenodes quote
-            @output $rest_of_line
-        end
+    else
+        code_for_inline_val, newline = parse_contentline(source)
     end
 
     body = @nolinenodes quote end
@@ -293,24 +286,26 @@ function parse_indented_block!(code, curindent, source)
                     @htmlesc string($(esc(expr)))
                 end)
             elseif sigil == "\\" || sigil == nothing
-                @mustcapture source "Expecting literal data" r"\h*(?<rest_of_line>.*)$(?<newline>\v?)"m
-                extendblock!(code, @nolinenodes quote
-                    @output $"$rest_of_line"
-                end)
+                @mustcapture source "Expecting space" r"\h*"
+                linecode, newline = parse_contentline(source)
+                extendblock!(code, linecode)
             elseif sigil == "/"
-                @mustcapture source "Expecting a comment" r"\h*(?<rest_of_line>.*)$(?<newline>\v?)"m
-                if !isempty(rest_of_line)
+                @mustcapture source "Expecting space" r"\h*"
+                linecode, newline = parse_contentline(source)
+                if !isnothing(linecode)
                     extendblock!(code, @nolinenodes quote
-                        @output $"<!-- $rest_of_line -->"
+                        @output "<!-- "
+                        $linecode
+                        @output " -->"
                     end)
                 else
                     body = @nolinenodes quote end
                     parseresult = parse_indented_block!(body, indent, source)
                     if !isnothing(parseresult)
                         indentation, newline = parseresult
-                        body = filterlinenodes(:( @indented $indentation (@indent; $body) ))
+                        body = filterlinenodes(:( @indented $indentation (@nextline; $body) ))
                         extendblock!(code, @nolinenodes quote
-                            @output $"<!--\n"
+                            @output $"<!--"
                             $body
                             @nextline $"-->"
                         end)

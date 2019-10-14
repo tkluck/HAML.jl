@@ -169,10 +169,12 @@ end
             <span motto='Let&#39;s get ready'></span>
             <div>Let&#39;s get ready</div>
             Let&#39;s get ready
+            The motto is Let&#39;s get ready
             """ haml"""
             %span(motto=motto)
             %= motto
             = motto
+            The motto is $motto
             """
         end
     end
@@ -256,6 +258,55 @@ end
         - @succeed(".") do
           %a(href="#") inviting friends
         """
+    end
+    @testset "Julia evaluation" begin
+        @expandsto """
+        <p>
+          hi there reader&#33;
+          yo
+        </p>
+        """ haml"""
+        %p
+          = join(["hi", "there", "reader!"], " ")
+          = "yo"
+        """
+        @expandsto """
+        &lt;script&gt;alert&#40;&quot;I&#39;m evil&#33;&quot;&#41;;&lt;/script&gt;
+        """ haml"""
+        = "<script>alert(\\"I'm evil!\\");</script>"
+        """
+        @expandsto """
+        <p>hello</p>
+        """ haml"""
+        %p= "hello"
+        """
+        @expandsto """
+        <p>hello there you&#33;</p>
+        """ haml"""
+        - foo = "hello"
+        - foo *= " there"
+        - foo *= " you!"
+        %p= foo
+        """
+        let quality = "scrumptious"
+            @expandsto """
+            <p>This is scrumptious cake!</p>
+            """ haml"""
+            %p This is $quality cake!
+            """
+        end
+        let word = "yon"
+            @expandsto raw"""
+            <p>
+              Look at \yon lack of backslash: $foo
+              And yon presence thereof: \foo
+            </p>
+            """ haml"""
+            %p
+              Look at \\$word lack of backslash: \$foo
+              And yon presence thereof: \foo
+            """
+        end
     end
     @testset "Scoping" begin
         let a = 2

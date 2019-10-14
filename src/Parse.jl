@@ -122,4 +122,39 @@ macro mustcapture(haystack, msg, needle)
     end
 end
 
+function parse_contentline(s::Source)
+    exprs = []
+    newline = ""
+    while !isempty(s)
+        @mustcapture s "Expecting literal content or interpolation" r"""
+            (?<literal>[^\\\$\v]*)
+            (?<nextchar>[\\\$\v]?)
+        """mx
+        if nextchar == "\\"
+            @mustcapture s "Expecting escaped character" r"(?<escaped_char>.)"
+            if escaped_char == "\\" || escaped_char == "\$"
+                literal *= escaped_char
+            else
+                literal *= nextchar * escaped_char
+            end
+        end
+        !isempty(literal) && push!(exprs, literal)
+        if nextchar == "\$"
+            expr = esc(Base.Meta.parse(s, greedy=false))
+            expr = :( htmlesc($expr) )
+            push!(exprs, expr)
+        end
+        if nextchar != "\\" && nextchar != "\$"
+            newline = nextchar
+            break
+        end
+    end
+    expr = isempty(exprs) ? nothing : Expr(:hamloutput, exprs...)
+    return expr, newline
+end
+
+function parse_line(::Type{Expr}, s::Source)
+end
+
+
 end # module
