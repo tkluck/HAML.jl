@@ -32,12 +32,15 @@ indentlength(s) = mapreduce(c -> c == '\t' ? 8 : 1, +, s, init=0)
 indentlength(::Nothing) = -1
 
 function materialize_indentation(expr, cur="")
-    if expr isa Expr && expr.head == :hamlindented
+    if !hasnode(:hamlindented, expr) && !hasnode(:hamlindentation, expr)
+        return expr
+    elseif expr isa Expr && expr.head == :hamlindented
         return materialize_indentation(expr.args[2], cur * expr.args[1])
     elseif expr isa Expr && expr.head == :hamlindentation
         return cur
     elseif expr isa Expr
-        args = map(a -> materialize_indentation(a, cur), expr.args)
+        args = Vector{Any}(undef, length(expr.args))
+        map!(a -> materialize_indentation(a, cur), args, expr.args)
         return Expr(expr.head, args...)
     else
         return expr
@@ -359,7 +362,8 @@ function merge_outputs(expr)
             return Expr(:block, args...)
         end
     elseif expr isa Expr
-        args = map(merge_outputs, expr.args)
+        args = Vector{Any}(undef, length(expr.args))
+        map!(merge_outputs, args, expr.args)
         return Expr(expr.head, args...)
     else
         return expr
