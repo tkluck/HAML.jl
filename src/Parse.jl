@@ -1,5 +1,7 @@
 module Parse
 
+import ..Hygiene: hasnode
+
 mutable struct Source
     text       :: String
     __source__ :: LineNumberNode
@@ -33,7 +35,9 @@ Base.isempty(s::Source) = s.ix > length(s.text)
 Base.match(needle::Regex, haystack::Source, args...; kwds...) = match(needle, SubString(haystack.text, haystack.ix), args...; kwds...)
 
 function _replace_dummy_linenodes(expr, origin::LineNumberNode)
-    if expr isa Expr && expr.head == :macrocall && expr.args[2].file == :none
+    if !hasnode(:macrocall, expr)
+        return expr
+    elseif expr isa Expr && expr.head == :macrocall && expr.args[2].file == :none
         delta = expr.args[2].line - 1
         line = LineNumberNode(origin.line + delta, origin.file)
         return Expr(:macrocall, expr.args[1], line, expr.args[3:end]...)
