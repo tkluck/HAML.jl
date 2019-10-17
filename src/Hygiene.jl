@@ -1,5 +1,12 @@
 module Hygiene
 
+function mapexpr(f, expr)
+    res = Expr(expr.head)
+    resize!(res.args, length(expr.args))
+    map!(f, res.args, expr.args)
+    return res
+end
+
 macro hygienic(expr)
     return expr
 end
@@ -60,11 +67,9 @@ function _expand_macros_hygienic(outermod, innermod, expr)
         # below.
         return esc(_expand_macros_hygienic(innermod, innermod, expr.args[1]))
     elseif expr isa Expr
-        args = Vector{Any}(undef, length(expr.args))
-        map!(args, expr.args) do a
+        return mapexpr(expr) do a
             _expand_macros_hygienic(outermod, innermod, a)
         end
-        return Expr(expr.head, args...)
     else
         return expr
     end

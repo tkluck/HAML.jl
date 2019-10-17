@@ -42,7 +42,8 @@ function _replace_dummy_linenodes(expr, origin::LineNumberNode)
         line = LineNumberNode(origin.line + delta, origin.file)
         return Expr(:macrocall, expr.args[1], line, expr.args[3:end]...)
     elseif expr isa Expr
-        args = map(a -> _replace_dummy_linenodes(a, origin), expr.args)
+        args = Vector{Any}(undef, length(expr.args))
+        map!(a -> _replace_dummy_linenodes(a, origin), args, expr.args)
         return Expr(expr.head, args...)
     else
         return expr

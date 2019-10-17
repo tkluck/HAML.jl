@@ -6,7 +6,7 @@ import DataStructures: OrderedDict
 import Markdown: htmlesc
 
 import ..Attributes: mergeattributes, writeattributes
-import ..Hygiene: expand_macros_hygienic, replace_expression_nodes_unescaped, hasnode
+import ..Hygiene: expand_macros_hygienic, replace_expression_nodes_unescaped, hasnode, mapexpr
 import ..Parse: @capture, @mustcapture, Source, parse_contentline
 
 function filterlinenodes(expr)
@@ -16,7 +16,7 @@ function filterlinenodes(expr)
     elseif expr isa Expr && expr.head == :$
         return expr
     elseif expr isa Expr
-        return Expr(expr.head, map(filterlinenodes, expr.args)...)
+        return mapexpr(filterlinenodes, expr)
     else
         return expr
     end
@@ -24,8 +24,7 @@ end
 
 macro nolinenodes(expr)
     @assert expr.head == :quote
-    args = map(filterlinenodes, expr.args)
-    return esc(Expr(:quote, args...))
+    return esc(mapexpr(filterlinenodes, expr))
 end
 
 indentlength(s) = mapreduce(c -> c == '\t' ? 8 : 1, +, s, init=0)
@@ -39,9 +38,7 @@ function materialize_indentation(expr, cur="")
     elseif expr isa Expr && expr.head == :hamlindentation
         return cur
     elseif expr isa Expr
-        args = Vector{Any}(undef, length(expr.args))
-        map!(a -> materialize_indentation(a, cur), args, expr.args)
-        return Expr(expr.head, args...)
+        return mapexpr(a -> materialize_indentation(a, cur), expr)
     else
         return expr
     end
@@ -362,9 +359,7 @@ function merge_outputs(expr)
             return Expr(:block, args...)
         end
     elseif expr isa Expr
-        args = Vector{Any}(undef, length(expr.args))
-        map!(merge_outputs, args, expr.args)
-        return Expr(expr.head, args...)
+        return mapexpr(merge_outputs, expr)
     else
         return expr
     end
