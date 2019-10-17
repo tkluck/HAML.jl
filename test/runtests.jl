@@ -170,11 +170,13 @@ end
             <div>Let&#39;s get ready</div>
             Let&#39;s get ready
             The motto is Let&#39;s get ready
+            <p>Let&#39;s get ready</p>
             """ haml"""
             %span(motto=motto)
             %= motto
             = motto
             The motto is $motto
+            %p $motto
             """
         end
     end
