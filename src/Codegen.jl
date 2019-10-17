@@ -7,7 +7,7 @@ import Markdown: htmlesc
 
 import ..Attributes: mergeattributes, writeattributes
 import ..Hygiene: expand_macros_hygienic, replace_expression_nodes_unescaped, hasnode, mapexpr
-import ..Parse: @capture, @mustcapture, Source, parse_contentline
+import ..Parse: @capture, @mustcapture, Source, parse_contentline, parse_expressionline
 
 function filterlinenodes(expr)
     if expr isa Expr && expr.head == :block
@@ -102,14 +102,11 @@ function parse_tag_stanza!(code, curindent, source)
 
     code_for_inline_val = nothing
     if !isnothing(equalssign)
-        @mustcapture source "Expecting an expression" r"""
-            \h*
-            (?<code_to_parse>
-                (?:,\h*(?:\#.*)?\v|.)*
-            )
-            $(?<newline>\v?)
-        """mx
-        expr = parse(source, code_to_parse)
+        startix = source.ix
+        expr, head, newline = parse_expressionline(source)
+        if !isnothing(head)
+            error(source, startix, "Block not supported after =")
+        end
         code_for_inline_val = @nolinenodes quote
             @htmlesc string($(esc(expr)))
         end
@@ -214,16 +211,11 @@ function parse_indented_block!(code, curindent, source)
                 end
                 newline = ""
             elseif sigil == "-"
-                @mustcapture source "Expecting an expression" r"""
-                    \h*
-                    (?<code_to_parse>
-                        (?:,\h*(?:\#.*)?\v|.)*
-                    )$\v?
-                """mx
-                if startswith(code_to_parse, r"\h*(?:for|while)\b")
-                    block = parse(source, "$code_to_parse\nend", code_to_parse, with_linenode=false)
-                    block.args[1] = esc(block.args[1])
-                    body_of_loop = block.args[2] = @nolinenodes quote
+                loc = LineNumberNode(source)
+                expr, head, newline = parse_expressionline(source, with_linenode=false)
+                if head in (:for, :while)
+                    expr.args[1] = esc(expr.args[1])
+                    body_of_loop = expr.args[2] = @nolinenodes quote
                         !first && @nextline
                         first = false
                     end
@@ -231,27 +223,26 @@ function parse_indented_block!(code, curindent, source)
                     if !isnothing(parseresult)
                         _, newline = parseresult
                     end
-                    push!(code.args, LineNumberNode(source))
+                    push!(code.args, loc)
                     extendblock!(code, @nolinenodes quote
                         let first=true
-                            $block
+                            $expr
                         end
                     end)
-                    controlflow_this = block
-                elseif startswith(code_to_parse, r"\h*if\b")
-                    block = parse(source, "$code_to_parse\nend", code_to_parse, with_linenode=false)
-                    block.args[1] = esc(block.args[1])
-                    push!(code.args, LineNumberNode(source))
-                    extendblock!(code, block)
-                    parseresult = parse_indented_block!(block.args[2], indent, source)
+                    controlflow_this = expr
+                elseif head == :if
+                    expr.args[1] = esc(expr.args[1])
+                    push!(code.args, loc)
+                    extendblock!(code, expr)
+                    parseresult = parse_indented_block!(expr.args[2], indent, source)
                     if !isnothing(parseresult)
                         _, newline = parseresult
                     end
-                    controlflow_this = block
-                elseif (block = parse(source, "$code_to_parse\nend", code_to_parse, raise=false, with_linenode=false); block isa Expr && block.head == :do)
-                    block.args[1] = esc(block.args[1])
-                    block.args[2].args[1] = esc(block.args[2].args[1])
-                    body_of_fun = block.args[2].args[2] = @nolinenodes quote
+                    controlflow_this = expr
+                elseif head == :do
+                    expr.args[1] = esc(expr.args[1])
+                    expr.args[2].args[1] = esc(expr.args[2].args[1])
+                    body_of_fun = expr.args[2].args[2] = @nolinenodes quote
                         !first && @nextline
                         first = false
                     end
@@ -259,27 +250,25 @@ function parse_indented_block!(code, curindent, source)
                     if !isnothing(parseresult)
                         _, newline = parseresult
                     end
-                    push!(code.args, LineNumberNode(source))
+                    push!(code.args, loc)
                     extendblock!(code, @nolinenodes quote
                         let first=true
-                            $block
+                            $expr
                         end
                     end)
-                else
-                    expr = parse(source, code_to_parse, with_linenode=false)
+                elseif isnothing(head)
                     push!(code.args, LineNumberNode(source))
                     extendblock!(code, esc(expr))
                     newline = ""
+                else
+                    error(source, "Unexpected expression head: $head")
                 end
             elseif sigil == "="
-                @mustcapture source "Expecting an expression" r"""
-                    \h*
-                    (?<code_to_parse>
-                        (?:.*|,\h*\v)*
-                    )
-                    $(?<newline>\v?)
-                """mx
-                expr = parse(source, code_to_parse)
+                startix = source.ix
+                expr, head, newline = parse_expressionline(source)
+                if !isnothing(head)
+                    error(source, startix, "Block not supported after =")
+                end
                 extendblock!(code, @nolinenodes quote
                     @htmlesc string($(esc(expr)))
                 end)

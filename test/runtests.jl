@@ -147,14 +147,16 @@ end
         #"
         # no closing newline
         @expandsto "<div class='hello'></div>" haml"%div.hello"
+    end
 
+    @testset "Julia syntax embedding" begin
         # a comment after the comma
         @expandsto """
-        <span a='b' c='d'>Hello everyone!</span>
+        <a href='#' c='d'>Hello everyone!</a>
         <div>1</div>
         <div>2</div>
         """ haml"""
-        %span(a="b", # set a to b
+        %a(href="#", # set href to #
               c="d") Hello everyone!
         - array = [1, # the first element
                    2]
@@ -162,6 +164,18 @@ end
           %= a
         """
 
+        # the characters #"' in annoying places
+        @expandsto """
+        #
+        &#36;
+        &quot;
+        &quot;
+        """ haml"""
+        - for s in ["#", "\$", "\\""] # correctly parse some special characters
+          = s
+        - for s in ['"']
+          = s
+        """
     end
     @testset "Escaping" begin
         let motto="Let's get ready"

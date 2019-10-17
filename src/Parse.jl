@@ -66,6 +66,9 @@ function Base.Meta.parse(s::Source, snippet::AbstractString, snippet_location::S
     if raise && expr isa Expr && expr.head == :error
         error(s, ix, expr.args[1])
     end
+    if expr isa Expr && expr.head == :incomplete
+        return expr
+    end
     return with_linenode ? Expr(:block, loc, expr) : expr
 end
 
@@ -158,7 +161,52 @@ function parse_contentline(s::Source)
     return expr, newline
 end
 
-function parse_line(::Type{Expr}, s::Source)
+function parse_expressionline(s::Source; with_linenode=true, kwds...)
+    loc = LineNumberNode(s)
+    startix = s.ix
+    while !isempty(s)
+        @mustcapture s "Expecting Julia expression" r"""
+            [^'",\#\v]*
+            (?:
+                (?=(?<nextchar>['"]))
+                |
+                (?<comma_before_end_of_line>
+                    ,
+                    \h*
+                    (?:\#.*)?
+                    $\v?
+                )
+                |
+                (?<just_a_comma>,)
+                |
+                (?<comment>\#.*$)
+                |
+                (?<newline>($\v)?)
+            )
+        """mx
+        if !isnothing(nextchar)
+            # advance the location in s by the run length of the string.
+            # Julia takes care of escaping etc. We will eventually parse
+            # the whole thing again in the branch below.
+            Base.Meta.parse(s; greedy=false)
+        elseif !isnothing(comma_before_end_of_line) ||
+                !isnothing(just_a_comma) ||
+                !isnothing(comment)
+            continue
+        else
+            snippet = SubString(s.text, startix, s.ix - 1)
+            expr = Base.Meta.parse(s, snippet; kwds..., with_linenode=false)
+            if expr isa Expr && expr.head == :incomplete
+                expr = Base.Meta.parse(s, "$snippet\nend", snippet; kwds..., with_linenode=false)
+                head = expr.head
+            else
+                head = nothing
+            end
+            expr = with_linenode ? Expr(:block, loc, expr) : expr
+            return expr, head, newline
+        end
+    end
+    return nothing, nothing, ""
 end
 
 
