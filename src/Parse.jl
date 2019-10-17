@@ -168,7 +168,7 @@ function parse_expressionline(s::Source; with_linenode=true, kwds...)
         @mustcapture s "Expecting Julia expression" r"""
             [^'",\#\v]*
             (?:
-                (?=(?<nextchar>['"]))
+                (?=(?<begin_of_string_literal>['"]))
                 |
                 (?<comma_before_end_of_line>
                     ,
@@ -184,7 +184,7 @@ function parse_expressionline(s::Source; with_linenode=true, kwds...)
                 (?<newline>($\v)?)
             )
         """mx
-        if !isnothing(nextchar)
+        if !isnothing(begin_of_string_literal)
             # advance the location in s by the run length of the string.
             # Julia takes care of escaping etc. We will eventually parse
             # the whole thing again in the branch below.
