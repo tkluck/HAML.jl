@@ -3,6 +3,7 @@ module HAML
 
 include("Hygiene.jl")
 include("Parse.jl")
+include("Attributes.jl")
 include("Codegen.jl")
 include("Templates.jl")
 include("Helpers.jl")

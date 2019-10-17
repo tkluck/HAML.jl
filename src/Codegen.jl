@@ -5,11 +5,9 @@ import Base.Meta: parse, quot
 import DataStructures: OrderedDict
 import Markdown: htmlesc
 
+import ..Attributes: mergeattributes, writeattributes
 import ..Hygiene: expand_macros_hygienic, replace_expression_nodes_unescaped, hasnode
 import ..Parse: @capture, @mustcapture, Source, parse_contentline
-
-include("Attributes.jl")
-import .Attributes: mergeattributes, writeattributes
 
 function filterlinenodes(expr)
     if expr isa Expr && expr.head == :block
