@@ -409,6 +409,15 @@ end
         - else
           %p I love Big Brother
         """
+
+        @expandsto """
+        <p>I love Big Brother</p>
+        """ haml"""
+        - if 2 + 2 == 5
+          %p All else follows
+        - else # with a comment
+          %p I love Big Brother
+        """
     end
 
     @testset "File format" begin
