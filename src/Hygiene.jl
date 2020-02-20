@@ -14,7 +14,7 @@ end
 const at_hygienic = getproperty(@__MODULE__, Symbol("@hygienic"))
 
 function make_hygienic(outermod, expr)
-    dummy_linenode = LineNumberNode(@__LINE__, @__FILE__)
+    dummy_linenode = LineNumberNode(@__LINE__, Symbol(@__FILE__))
     return macroexpand(outermod, Expr(:macrocall, at_hygienic, dummy_linenode, expr), recursive=false)
 end
 
