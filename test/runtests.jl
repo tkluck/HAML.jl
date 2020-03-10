@@ -483,6 +483,8 @@ end
             </html>
             """ == String(take!(io))
         end
+
+        @test Meta.parse(HAML.Source(joinpath(@__DIR__, "hamljl", "hitchhiker.hamljl"))) isa Expr
     end
 
     @testset "File/line information" begin

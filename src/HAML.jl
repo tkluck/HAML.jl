@@ -9,6 +9,7 @@ include("Templates.jl")
 include("Helpers.jl")
 
 import .Codegen: generate_haml_writer_codeblock, @haml_str, @io, @output
+import .Parse: Source
 import .Templates: render, @include
 import .Helpers: @surround, @precede, @succeed
 

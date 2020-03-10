@@ -54,7 +54,7 @@ end
     usermod = getmodule(FR())
     source = read(open(FR()), String)
     sourceref = LineNumberNode(1, Symbol(FR()))
-    code = generate_haml_writer_codeblock(usermod, Source(source, sourceref), string(indent))
+    code = generate_haml_writer_codeblock(usermod, Source(sourceref, source), string(indent))
     code = replace_output_nodes(code, :io)
     code = replace_expression_nodes_unescaped(:$, code) do sym
         sym isa Symbol || error("Can only use variables as interpolations")

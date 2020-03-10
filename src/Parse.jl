@@ -3,12 +3,20 @@ module Parse
 import ..Hygiene: hasnode
 
 mutable struct Source
-    text       :: String
     __source__ :: LineNumberNode
+    text       :: String
     ix         :: Int
 end
 
-Source(text::String, __source__::LineNumberNode=LineNumberNode(-1)) = Source(text, __source__, 1)
+"""
+    HAML.Source("/path/to/file.hamljl")
+    HAML.Source(::LineNumberNode, ::AbstractString)
+
+Represent Julia-flavoured HAML source code that can be parsed using
+the `Meta.parse` function.
+"""
+Source(__source__::LineNumberNode, text::AbstractString) = Source(__source__, text, 1)
+Source(path::AbstractString) = Source(LineNumberNode(1, Symbol(path)), read(path, String), 1)
 
 function linecol(s::Source, ix::Int=s.ix)
     line, col = 1, 1

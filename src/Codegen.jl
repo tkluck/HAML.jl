@@ -397,7 +397,7 @@ macro haml_str(source)
     # FIXME: off-by-one because triple-quoted haml""" has its
     # first character on the next line.
     loc = LineNumberNode(__source__.line + 1, __source__.file)
-    code = generate_haml_writer_codeblock(__module__, Source(source, loc))
+    code = generate_haml_writer_codeblock(__module__, Source(loc, source))
 
     if isoutput(code) && !hasnode(:hamlio, code)
         return Expr(:string, code.args...)
