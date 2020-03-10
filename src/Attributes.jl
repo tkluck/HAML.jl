@@ -31,17 +31,18 @@ recurse_attributes(x::Pair, path...) = recurse_attributes(x[2], path..., x[1])
 recurse_attributes(x::Union{NamedTuple,AbstractDict}, path...) = (attr for pair in pairs(x) for attr in recurse_attributes(pair, path...))
 recurse_attributes(x::AbstractVector, path...) = (attr for pair in x for attr in recurse_attributes(pair, path...))
 
-function writeattributes(io, attributes)
+function attributes_to_string(attributes)
     collected_attributes = OrderedDict()
     for (name, value) in recurse_attributes(attributes)
         a = get!(Vector, collected_attributes, name)
         append!(a, [value;])
     end
-    for (name, value) in pairs(collected_attributes)
-        (valid, name, value) = makeattr(name, value)
-        valid || continue
-        write(io, " ", name, "='", value, "'")
-    end
+    join(
+        " $name='$value'"
+        for (name, value) in pairs(collected_attributes)
+        for (valid, name, value) in (makeattr(name, value),)
+        if valid
+    )
 end
 
 function mergeattributes(attr, keyvalue)
@@ -96,13 +97,11 @@ function mergeattributes(attr::AbstractDict, (key, val)::Pair{Symbol})
 end
 
 function writeattributes(attr)
-    return :( $writeattributes(@io, $attr) )
+    return :( @output $attributes_to_string($attr) )
 end
 
 function writeattributes(attr::AbstractDict)
-    io = IOBuffer()
-    writeattributes(io, attr)
-    attrstr = String(take!(io))
+    attrstr = attributes_to_string(attr)
     return :( @output $attrstr )
 end
 
