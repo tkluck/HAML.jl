@@ -400,7 +400,11 @@ macro haml_str(source)
     code = generate_haml_writer_codeblock(__module__, Source(loc, source))
 
     if isoutput(code) && !hasnode(:hamlio, code)
-        return Expr(:string, code.args...)
+        if length(code.args) == 1 && code.args[1] isa String
+            return code.args[1]
+        else
+            return Expr(:string, code.args...)
+        end
     end
 
     code = replace_output_nodes(code, :io)

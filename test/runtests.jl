@@ -506,11 +506,12 @@ end
     end
 
     @testset "Compile-time expansion where possible" begin
-        @macroexpand(haml"""
+        @test @macroexpand(haml"""
         %p Hallo
+        %a(href="./index.html") Home
         """) isa String
 
-        @macroexpand(haml"""
+        @test @macroexpand(haml"""
         !!! 5
         %html
           %head
