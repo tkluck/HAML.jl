@@ -50,14 +50,14 @@ function _replace_dummy_linenodes(expr, origin::LineNumberNode)
     end
 end
 
-function Base.Meta.parse(s::Source; kwds...)
+function parse_juliacode(s::Source; kwds...)
     expr, offset = Base.Meta.parse(s.text, s.ix; kwds...)
     expr = _replace_dummy_linenodes(expr, LineNumberNode(s))
     advance!(s, offset - s.ix)
     expr
 end
 
-function Base.Meta.parse(s::Source, snippet::AbstractString, snippet_location::SubString = snippet; raise=true, with_linenode=true, kwds...)
+function parse_juliacode(s::Source, snippet::AbstractString, snippet_location::SubString = snippet; raise=true, with_linenode=true, kwds...)
     @assert snippet_location.string == s.text
     ix = snippet_location.offset + 1
     expr = Base.Meta.parse(snippet; raise=false, kwds...)
@@ -148,7 +148,7 @@ function parse_contentline(s::Source)
         end
         !isempty(literal) && push!(exprs, literal)
         if nextchar == "\$"
-            expr = esc(Base.Meta.parse(s, greedy=false))
+            expr = esc(parse_juliacode(s, greedy=false))
             expr = :( htmlesc($expr) )
             push!(exprs, expr)
         end
@@ -188,16 +188,16 @@ function parse_expressionline(s::Source; with_linenode=true, kwds...)
             # advance the location in s by the run length of the string.
             # Julia takes care of escaping etc. We will eventually parse
             # the whole thing again in the branch below.
-            Base.Meta.parse(s; greedy=false)
+            parse_juliacode(s; greedy=false)
         elseif !isnothing(comma_before_end_of_line) ||
                 !isnothing(just_a_comma) ||
                 !isnothing(comment)
             continue
         else
             snippet = SubString(s.text, startix, s.ix - 1)
-            expr = Base.Meta.parse(s, snippet; kwds..., with_linenode=false)
+            expr = parse_juliacode(s, snippet; kwds..., with_linenode=false)
             if expr isa Expr && expr.head == :incomplete
-                expr = Base.Meta.parse(s, "$snippet\nend", snippet; kwds..., with_linenode=false)
+                expr = parse_juliacode(s, "$snippet\nend", snippet; kwds..., with_linenode=false)
                 head = expr.head
             else
                 head = nothing

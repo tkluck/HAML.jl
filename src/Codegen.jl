@@ -1,13 +1,13 @@
 module Codegen
 
-import Base.Meta: parse, quot
+import Base.Meta: quot
 
 import DataStructures: OrderedDict
 import Markdown: htmlesc
 
 import ..Attributes: mergeattributes, writeattributes
 import ..Hygiene: expand_macros_hygienic, replace_expression_nodes_unescaped, hasnode, mapexpr
-import ..Parse: @capture, @mustcapture, Source, parse_contentline, parse_expressionline
+import ..Parse: @capture, @mustcapture, Source, parse_juliacode, parse_contentline, parse_expressionline
 
 function filterlinenodes(expr)
     if expr isa Expr && expr.head == :block
@@ -69,7 +69,7 @@ function parse_tag_stanza!(code, curindent, source)
         )
     """x
         if !isnothing(openbracket)
-            attr_expr = parse(source, greedy=false)
+            attr_expr = parse_juliacode(source, greedy=false)
             if attr_expr.head == :(=) || attr_expr.head == :...
                 attr_expr = :( ($attr_expr,) )
             elseif attr_expr.head == :call && attr_expr.args[1] == :(=>)
@@ -354,7 +354,7 @@ function merge_outputs(expr)
     end
 end
 
-function generate_haml_writer_codeblock(usermod, source, extraindent="")
+function Meta.parse(source::Source; kwds...)
     code = @nolinenodes quote end
     parseresult = parse_indented_block!(code, nothing, source)
     if !isnothing(parseresult)
@@ -365,6 +365,11 @@ function generate_haml_writer_codeblock(usermod, source, extraindent="")
             @output $newline
         end
     end
+    return code
+end
+
+function generate_haml_writer_codeblock(usermod, source, extraindent="")
+    code = Meta.parse(source)
     code = expand_macros_hygienic(@__MODULE__, usermod, code)
     code = Expr(:hamlindented, extraindent, code)
     code = materialize_indentation(code)
