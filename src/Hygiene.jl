@@ -1,6 +1,7 @@
 module Hygiene
 
-function mapexpr(f, expr)
+mapexpr(f, expr) = expr
+mapexpr(f, expr::Expr) = begin
     res = Expr(expr.head)
     resize!(res.args, length(expr.args))
     map!(f, res.args, expr.args)
@@ -24,9 +25,13 @@ hasmacrocall(expr) = hasnode(:macrocall, expr)
 
 function _replace_expression_nodes_unescaped(f, head, expr, should_escape)
     if !hasnode(head, expr)
-        return expr, false
+        return expr, should_escape
     elseif expr isa Expr && expr.head == head
-        return f(expr.args...), false
+        if should_escape
+            return f(esc, expr.args...), false
+        else
+            return f(identity, expr.args...), false
+        end
     elseif expr isa Expr && expr.head == :escape
         res, should_escape = _replace_expression_nodes_unescaped(f, head, expr.args[1], true)
         return res, should_escape
@@ -56,65 +61,20 @@ function replace_expression_nodes_unescaped(f, head, expr)
     return should_escape ? esc(expr) : expr
 end
 
-function _expand_macros_hygienic(outermod, innermod, expr)
-    if !hasmacrocall(expr)
-        return expr
-    elseif expr isa Expr && expr.head == :macrocall
-        return macroexpand(outermod, expr, recursive=false)
-    elseif expr isa Expr && expr.head == :escape
-        # FIXME: not sure if we should traverse multiple levels of escaping,
-        # but if we don't we risk an infinite loop in while hasmacrocall(...)
-        # below.
-        return esc(_expand_macros_hygienic(innermod, innermod, expr.args[1]))
-    elseif expr isa Expr
-        return mapexpr(expr) do a
-            _expand_macros_hygienic(outermod, innermod, a)
-        end
+function mapesc(f, expr)
+    if expr isa Expr && expr.head == :escape
+        return mapexpr(f, expr)
     else
-        return expr
+        return mapexpr(a -> mapesc(f, a), expr)
     end
 end
 
 function expand_macros_hygienic(outermod, innermod, expr)
-    while hasmacrocall(expr)
-        expr = _expand_macros_hygienic(outermod, innermod, expr)
+    expr = mapesc(expr) do a
+        macroexpand(innermod, a)
     end
+    expr = macroexpand(outermod, expr)
     return expr
-end
-
-function _invert_escaping(expr)
-    if !hasnode(:escape, expr)
-        return expr, true
-    elseif expr isa Expr && expr.head == :escape
-        return expr.args[1], false
-    elseif expr isa Expr && expr.head == :(=)
-        tgt = invert_escaping(expr.args[1])
-        val = invert_escaping(expr.args[2])
-        return Expr(:(=), tgt, val), false
-    elseif expr isa Expr
-        result = Vector{Any}(undef, length(expr.args))
-        map!(result, expr.args) do a
-            _invert_escaping(a)
-        end
-        if all(r -> r[2], result)
-            args = map(r -> r[1], result)
-            should_escape = true
-        else
-            args = map(result) do A
-                a, should_escape = A
-                should_escape ? esc(a) : a
-            end
-            should_escape = false
-        end
-        return Expr(expr.head, args...), should_escape
-    else
-        return expr, true
-    end
-end
-
-function invert_escaping(expr)
-    expr, should_escape = _invert_escaping(expr)
-    return should_escape ? esc(expr) : expr
 end
 
 end # module

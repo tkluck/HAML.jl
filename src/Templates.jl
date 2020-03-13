@@ -2,7 +2,7 @@ module Templates
 
 import HAML
 
-import ..Hygiene: make_hygienic, invert_escaping, replace_expression_nodes_unescaped
+import ..Hygiene: make_hygienic, replace_expression_nodes_unescaped
 import ..Parse: Source
 import ..Codegen: generate_haml_writer_codeblock, replace_output_nodes, @output, @io
 
@@ -61,10 +61,10 @@ includehaml(mod::Module, fn::Symbol, path, indent="") = _includehaml(mod, fn, pa
 function _includehaml(mod::Module, fn::Symbol, path, indent="")
     s = Source(path)
     code = generate_haml_writer_codeblock(mod, s, string(indent))
-    code = replace_expression_nodes_unescaped(:hamloutput, code) do content...
-        :( f($(content...)) )
+    code = replace_expression_nodes_unescaped(:hamloutput, code) do esc, content...
+        :( f($(map(esc, content)...)) )
     end
-    code = replace_expression_nodes_unescaped(:$, code) do sym
+    code = replace_expression_nodes_unescaped(:$, code) do esc, sym
         sym isa Symbol || error("Can only use variables as interpolations")
         :( variables.data.$sym )
     end

@@ -449,7 +449,8 @@ end
           </body>
         </html>
         """ haml"""
-        - @include("hamljl/hitchhiker.hamljl", question = "What's the answer to life, the universe, and everything?", answer = 42)
+        - answer = 42
+        - @include("hamljl/hitchhiker.hamljl", question = "What's the answer to life, the universe, and everything?", answer = answer)
         """
 
         @expandsto """

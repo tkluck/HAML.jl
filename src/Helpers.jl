@@ -10,15 +10,15 @@ precede(f, before) = surround(f, before, () -> nothing)
 succeed(f, after) = surround(f, () -> nothing, after)
 
 macro surround(before, after=before)
-    return :( surround(() -> @output($(esc(before))), () -> @output($(esc(after)))) )
+    return :( surround(() -> $(Expr(:hamloutput, esc(before))), () -> $(Expr(:hamloutput, esc(after)))) )
 end
 
 macro precede(before)
-    return :( precede(() -> @output($(esc(before)))) )
+    return :( precede(() -> $(Expr(:hamloutput, esc(before)))) )
 end
 
 macro succeed(after)
-    return :( succeed(() -> @output($(esc(after)))) )
+    return :( succeed(() -> $(Expr(:hamloutput, esc(after)))) )
 end
 
 end

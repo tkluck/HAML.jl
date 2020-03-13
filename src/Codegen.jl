@@ -378,16 +378,16 @@ function generate_haml_writer_codeblock(usermod, source, extraindent="")
 end
 
 function replace_output_nodes(code, io)
-    code = replace_expression_nodes_unescaped(:hamloutput, code) do (args...)
+    code = replace_expression_nodes_unescaped(:hamloutput, code) do esc, args...
         write_statements = map(args) do a
             # each in its own statement; no need to put everything on the
             # stack before starting sending stuff out on the io. (By this
             # time, static strings have already been concatenated.)
-            :( write($io, $a) )
+            :( write($io, $(esc(a))) )
         end
         Expr(:block, write_statements...)
     end
-    code = replace_expression_nodes_unescaped(:hamlio, code) do
+    code = replace_expression_nodes_unescaped(:hamlio, code) do esc
         io
     end
     return code
@@ -435,16 +435,17 @@ macro output(expr...)
 end
 
 macro indent()
-    :( @output @indentation )
+    Expr(:hamloutput, Expr(:hamlindentation))
 end
 
 macro nextline(expr...)
     expr = map(esc, expr)
-    :( @output "\n" @indentation() $(expr...) )
+    Expr(:hamloutput, "\n", Expr(:hamlindentation), expr...)
 end
 
 macro htmlesc(expr...)
-    :( @output $htmlesc($(expr...)) )
+    expr = map(esc, expr)
+    Expr(:hamloutput, :( $htmlesc($(expr...)) ))
 end
 
 end # module
