@@ -14,6 +14,7 @@ include("Templates.jl")
 
 function __init__()
     @require Genie="c43c736e-a2d1-11e8-161f-af95117fbd1e" include("Genie.jl")
+    @require Revise="295af30f-e4ad-537b-8983-00126c2a3abe" include("Revise.jl")
 end
 
 import .Codegen: generate_haml_writer_codeblock, @haml_str

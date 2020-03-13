@@ -2,6 +2,7 @@ using Test
 using HAML
 
 using DataStructures: OrderedDict
+using Revise
 
 """
     @expandsto "
@@ -951,5 +952,23 @@ end
         - @Bar.barmacro(42)
         - @Bar.bazmacro(42)
         """
+    end
+
+    @testset "Revise" begin
+        append(path, text) = open(path, append=true) do io
+            write(io, text)
+        end
+        mktemp() do path, _
+            append(path, "%p Hallo\n")
+            includehaml(Main, :foo, path)
+            @test Base.invokelatest(foo) == "<p>Hallo</p>\n"
+
+            sleep(0.1)
+            append(path, "%p Bye\n")
+            sleep(0.1)
+
+            Revise.revise()
+            @test Base.invokelatest(foo) == "<p>Hallo</p>\n<p>Bye</p>\n"
+        end
     end
 end

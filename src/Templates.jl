@@ -64,7 +64,10 @@ template in the file `path`. These methods have the following signatures:
 where the output of the template will be written to `io` / passed to `f`
 / returned respectively.
 """
-includehaml(mod::Module, fn::Symbol, path, indent="") = _includehaml(mod, fn, path, indent)
+function includehaml(mod::Module, fn::Symbol, path, indent="")
+    revisehook(mod, fn, path, indent)
+    _includehaml(mod, fn, path, indent)
+end
 
 includehaml(mod::Module, fns::Pair{Symbol}...) = foreach(fns) do (fn, path)
     includehaml(mod, fn, path)
@@ -76,6 +79,8 @@ end
 
 Base.write(io::IOClosure, args...) = io.f(args...)
 Base.write(io::IOClosure, arg::Union{SubString{String}, String}) = io.f(arg)
+
+revisehook(mod, fn, path, indent) = nothing
 
 function _includehaml(mod::Module, fn::Symbol, path, indent="")
     Base.include_dependency(path)
