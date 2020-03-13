@@ -6,29 +6,54 @@ import ..Hygiene: make_hygienic, invert_escaping, replace_expression_nodes_unesc
 import ..Parse: Source
 import ..Codegen: generate_haml_writer_codeblock, replace_output_nodes, @output, @io
 
+function tokwds(assignments...)
+    kwds = map(assignments) do a
+        a isa Expr || error()
+        a.head == :(=) || error()
+        Expr(:kw, a.args[1], esc(a.args[2]))
+    end
+
+    return Expr(:parameters, kwds...)
+end
+
 macro include(relpath, args...)
-    relpath = esc(relpath)
-    args = map(esc, args)
+    args = try
+        tokwds(args...)
+    catch err
+        throw(ArgumentError("Invalid use of @include: $(args...)"))
+    end
 
     at_dir = getproperty(Base, Symbol("@__DIR__"))
     dir = macroexpand(__module__, Expr(:macrocall, at_dir, __source__))
 
-    :( render(joinpath($dir, $relpath); variables=($(args...),)) do (content...)
+    path = realpath(joinpath(dir, relpath))
+    sym = Symbol(path)
+
+    includehaml(Generated, sym, path)
+
+    res = :( Generated.$sym($args) do (content...)
         $(Expr(:hamloutput, :(content...)))
     end )
+    #@show res
+    return res
 end
 
 """
     includehaml(mod::Module, fn::Symbol, path, indent="")
 
-Define two methods for the function `mod.fn` that allow rendering the HAML
-template in  the file `path`. These methods have the following signatures:
+Define methods for the function `mod.fn` that allow rendering the HAML
+template in the file `path`. These methods have the following signatures:
 
     fn(io::IO; variables...)
     fn(f::Function; variables...)
+    fn(io::IO, indent; variables...)
+    fn(f::Function, indent; variables...)
 
 where the output of the template will be written to `io` / passed to `f`
 respectively.
+
+The methods without an `indent` parameter may apply more aggressive
+compile-time string concatenation.
 """
 includehaml(mod::Module, fn::Symbol, path, indent="") = _includehaml(mod, fn, path, indent)
 
@@ -46,7 +71,7 @@ function _includehaml(mod::Module, fn::Symbol, path, indent="")
     fn = esc(fn)
     code = quote
         $fn(f::Function; variables...) = $code
-        $fn(io::IO; variables...) = $fn(; variables...) do (content...)
+        $fn(io::IO; variables...) = $fn(; variables...) do content...
             write(io, content...)
         end
         $fn(; variables...) = let io = IOBuffer()
@@ -60,14 +85,15 @@ function _includehaml(mod::Module, fn::Symbol, path, indent="")
     Base.eval(mod, code)
 end
 
-module Generated
-    import ...Templates: @output, @io, @include
-end
-
 function render(io, path; variables=(), indent="")
     fn = gensym()
     includehaml(Generated, fn, path, indent)
     Base.invokelatest(getproperty(Generated, fn), io; variables...)
 end
+
+module Generated
+    import ...Templates: @output, @io, @include
+end
+
 
 end # module
