@@ -29,9 +29,9 @@ macro include(relpath, args...)
     path = realpath(joinpath(dir, relpath))
     sym = Symbol(path)
 
-    includehaml(Generated, sym, path)
+    includehaml(HamlOnFileSystem, sym, path)
 
-    res = :( Generated.$sym($args) do (content...)
+    res = :( HamlOnFileSystem.$sym($args) do (content...)
         $(Expr(:hamloutput, :(content...)))
     end )
     #@show res
@@ -88,13 +88,13 @@ end
 function render(io, path; variables=(), indent="")
     path = abspath(path)
     fn = Symbol(path)
-    if !hasproperty(Generated, fn)
-        includehaml(Generated, fn, path, indent)
+    if !hasproperty(HamlOnFileSystem, fn)
+        includehaml(HamlOnFileSystem, fn, path, indent)
     end
-    Base.invokelatest(getproperty(Generated, fn), io; variables...)
+    Base.invokelatest(getproperty(HamlOnFileSystem, fn), io; variables...)
 end
 
-module Generated
+module HamlOnFileSystem
     import ...Templates: @output, @io, @include
 end
 
