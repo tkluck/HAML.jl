@@ -86,8 +86,11 @@ function _includehaml(mod::Module, fn::Symbol, path, indent="")
 end
 
 function render(io, path; variables=(), indent="")
-    fn = gensym()
-    includehaml(Generated, fn, path, indent)
+    path = abspath(path)
+    fn = Symbol(path)
+    if !hasproperty(Generated, fn)
+        includehaml(Generated, fn, path, indent)
+    end
     Base.invokelatest(getproperty(Generated, fn), io; variables...)
 end
 
