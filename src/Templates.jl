@@ -16,6 +16,8 @@ function tokwds(assignments...)
     return Expr(:parameters, kwds...)
 end
 
+const files_included = Set()
+
 macro include(relpath, args...)
     args = try
         tokwds(args...)
@@ -29,9 +31,14 @@ macro include(relpath, args...)
     path = realpath(joinpath(dir, relpath))
     sym = Symbol(path)
 
-    includehaml(HamlOnFileSystem, sym, path)
+    # hasproperty(__module__, sym) doesn't work at pre-compilation time
+    key = (objectid(__module__), sym)
+    if key ∉ files_included
+        includehaml(__module__, sym, path)
+        push!(files_included, key)
+    end
 
-    res = :( HamlOnFileSystem.$sym($args) do (content...)
+    res = :( $(esc(sym))($args) do (content...)
         $(Expr(:hamloutput, :(content...)))
     end )
     return res
