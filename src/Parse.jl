@@ -1,5 +1,7 @@
 module Parse
 
+import Markdown: htmlesc
+
 import ..Hygiene: hasnode
 
 mutable struct Source
@@ -157,7 +159,7 @@ function parse_contentline(s::Source)
         !isempty(literal) && push!(exprs, literal)
         if nextchar == "\$"
             expr = esc(parse_juliacode(s, greedy=false))
-            expr = :( htmlesc($expr) )
+            expr = :( $htmlesc($string($expr)) )
             push!(exprs, expr)
         end
         if nextchar != "\\" && nextchar != "\$"
