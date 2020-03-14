@@ -70,6 +70,7 @@ function parse_tag_stanza!(code, curindent, source)
     """x
         if !isnothing(openbracket)
             attr_expr = parse_juliacode(source, greedy=false)
+            attr_expr isa Expr || error(source, "Expecting key=value expression")
             if attr_expr.head == :(=) || attr_expr.head == :...
                 attr_expr = :( ($attr_expr,) )
             elseif attr_expr.head == :call && attr_expr.args[1] == :(=>)
