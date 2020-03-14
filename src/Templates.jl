@@ -34,7 +34,6 @@ macro include(relpath, args...)
     res = :( HamlOnFileSystem.$sym($args) do (content...)
         $(Expr(:hamloutput, :(content...)))
     end )
-    #@show res
     return res
 end
 
