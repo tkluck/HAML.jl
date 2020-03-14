@@ -65,7 +65,7 @@ function parse_tag_stanza!(code, curindent, source)
         |
         (?:
             (?<sigil>\.|\#)
-            (?<value>[A-Za-z0-9]+)
+            (?<value>[A-Za-z0-9][A-Za-z0-9-]*)
         )
     """x
         if !isnothing(openbracket)

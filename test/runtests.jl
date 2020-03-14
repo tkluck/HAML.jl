@@ -133,6 +133,12 @@ end
           %div
             Foo!
         """
+
+        @expandsto """
+        <div class='foo-bar'></div>
+        """ haml"""
+        .foo-bar
+        """
     end
     @testset "Whitespace" begin
         @expandsto "" haml""
