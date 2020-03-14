@@ -53,12 +53,11 @@ end
           %two
             %three Hey there
         """
-        # pending https://github.com/JuliaLang/julia/issues/32121#issuecomment-534982081
-        #@expandsto """
-        #<html xmlns='http://www.w3.org/1999/xhtml' xml:lang='en' lang='en'></html>
-        #""" haml"""
-        #%html(xmlns = "http://www.w3.org/1999/xhtml", Symbol("xml:lang") => "en", lang="en")
-        #"""
+        @expandsto """
+        <html xmlns='http://www.w3.org/1999/xhtml' xml:lang='en' lang='en'></html>
+        """ haml"""
+        %html(xmlns = "http://www.w3.org/1999/xhtml", Symbol("xml:lang") => "en", lang="en")
+        """
         @expandsto """
         <script type='text/javascript' src='javascripts/script_9'></script>
         """ haml"""
@@ -383,14 +382,13 @@ end
         """ haml"""
         - @include("hamljl/at-output.hamljl")
         """
-        # pending https://github.com/JuliaLang/julia/issues/32121#issuecomment-534982081
-        #let attribute = :href # hygiene of the => operator inside a named tuple
-        #    @expandsto """
-        #    <a class='link', href='/index.html'>Home</a>
-        #    """ haml"""
-        #    %a(class="link", attribute => "/index.html") Home
-        #    """
-        #end
+        let attribute = :href # hygiene of the => operator inside a named tuple
+            @expandsto """
+            <a class='link' href='/index.html'>Home</a>
+            """ haml"""
+            %a(class="link", attribute => "/index.html") Home
+            """
+        end
     end
     @testset "Control flow" begin
         @expandsto """
