@@ -394,6 +394,20 @@ function replace_output_nodes(code, io)
     return code
 end
 
+"""
+    @haml_str(source)
+    haml"..."
+
+Include HAML source code into Julia source. The code will be
+executed in the context (module / function) where it appears
+and has access to the same variables.
+
+# Example
+```jldoctest
+julia> haml"%p Hello, world"
+"<p>Hello, world</p>"
+```
+"""
 macro haml_str(source)
     # FIXME: off-by-one because triple-quoted haml""" has its
     # first character on the next line.

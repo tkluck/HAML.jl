@@ -18,6 +18,13 @@ end
 
 const files_included = Set()
 
+"""
+    @include(relpath, args...)
+
+Include HAML code from another file. This macro can only be used
+from within other HAML code. `args` should be `key=value` parameters
+and they will be accessible in the included code by using `\$key`.
+"""
 macro include(relpath, args...)
     args = try
         tokwds(args...)
@@ -46,20 +53,17 @@ end
 
 """
     includehaml(mod::Module, fn::Symbol, path, indent="")
+    includehaml(mod::Module, fns::Pair{Symbol}...)
 
 Define methods for the function `mod.fn` that allow rendering the HAML
 template in the file `path`. These methods have the following signatures:
 
     fn(io::IO; variables...)
     fn(f::Function; variables...)
-    fn(io::IO, indent; variables...)
-    fn(f::Function, indent; variables...)
+    fn(; variables...)
 
 where the output of the template will be written to `io` / passed to `f`
-respectively.
-
-The methods without an `indent` parameter may apply more aggressive
-compile-time string concatenation.
+/ returned respectively.
 """
 includehaml(mod::Module, fn::Symbol, path, indent="") = _includehaml(mod, fn, path, indent)
 
@@ -94,6 +98,13 @@ function _includehaml(mod::Module, fn::Symbol, path, indent="")
     Base.eval(mod, code)
 end
 
+"""
+    render(io, path; variables=(), indent="")
+
+Evaluate HAML code in the file specified by `path` and write
+the result to `io`. Any variables passed as `variables` will be
+available to the resulting code as `\$key`.
+"""
 function render(io, path; variables=(), indent="")
     path = abspath(path)
     fn = Symbol(path)
