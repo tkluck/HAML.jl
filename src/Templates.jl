@@ -63,6 +63,9 @@ compile-time string concatenation.
 """
 includehaml(mod::Module, fn::Symbol, path, indent="") = _includehaml(mod, fn, path, indent)
 
+includehaml(mod::Module, fns::Pair{Symbol}...) = foreach(fns) do (fn, path)
+    includehaml(mod, fn, path)
+end
 
 function _includehaml(mod::Module, fn::Symbol, path, indent="")
     s = Source(path)

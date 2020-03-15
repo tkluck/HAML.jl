@@ -467,8 +467,9 @@ end
         - @include("hamljl/form.hamljl")
         """
 
+        hamljl(name) = joinpath(@__DIR__, "hamljl", name)
         let io = IOBuffer()  # test the render(...) entrypoint
-            render(io, joinpath(@__DIR__, "hamljl", "hitchhiker.hamljl"),
+            render(io, hamljl("hitchhiker.hamljl"),
                 variables = (
                     question = "What's the answer to life, the universe, and everything?",
                     answer = "42",
@@ -489,7 +490,26 @@ end
             """ == String(take!(io))
         end
 
-        @test Meta.parse(HAML.Source(joinpath(@__DIR__, "hamljl", "hitchhiker.hamljl"))) isa Expr
+        @test Meta.parse(HAML.Source(hamljl("hitchhiker.hamljl"))) isa Expr
+
+        @eval module Foo end
+        @test includehaml(Foo, :hitchhiker, hamljl("hitchhiker.hamljl")) isa Function
+        @test includehaml(Foo, :foo => hamljl("hitchhiker.hamljl"), :bar => hamljl("hitchhiker.hamljl")) == nothing
+        @test Foo.hitchhiker(question="Q", answer="A") ==
+            Foo.foo(question="Q", answer="A") ==
+            Foo.bar(question="Q", answer="A") == """
+        <html>
+          <head>
+            <title>The Hitchhiker's guide to the galaxy</title>
+          </head>
+          <body>
+            <h1>What's the question?</h1>
+            <p>Q</p>
+            <h2>What's the answer?</h2>
+            <p>A</p>
+          </body>
+        </html>
+        """
     end
 
     @testset "File/line information" begin
