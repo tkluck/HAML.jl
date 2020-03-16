@@ -336,6 +336,25 @@ hamljl(name) = joinpath(@__DIR__, "hamljl", name)
         - @succeed(".") do
           %a(href="#") inviting friends
         """
+
+        @expandsto """
+        <div>
+          <p>A paragraph from a source file</p>
+        </div>""" haml"""
+        %
+          - @sourcefile("hamljl/paragraph.html")
+        """
+
+        @expandsto """
+        <script>
+          <![CDATA[
+          function foo() {
+          }
+          ]]>
+        </script>""" haml"""
+        %script
+          - @cdatafile("hamljl/foo.js")
+        """
     end
     @testset "Julia evaluation" begin
         @expandsto """

@@ -17,9 +17,9 @@ end
 import .Codegen: generate_haml_writer_codeblock, @haml_str, @io, @output
 import .Parse: Source
 import .Templates: render, @include, includehaml
-import .Helpers: @surround, @precede, @succeed
+import .Helpers: @surround, @precede, @succeed, @sourcefile, @cdatafile
 
 export @haml_str, render, @output, @io, @include, includehaml
-export @surround, @precede, @succeed
+export @surround, @precede, @succeed, @sourcefile, @cdatafile
 
 end # module
