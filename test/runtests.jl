@@ -7,6 +7,9 @@ macro expandsto(str1, str2)
     :( @test $(esc(str1)) == $(esc(str2)) )
 end
 
+module Foo end
+hamljl(name) = joinpath(@__DIR__, "hamljl", name)
+
 @testset "HAML" begin
     @testset "Plain Text" begin
         @expandsto """
@@ -467,7 +470,6 @@ end
         - @include("hamljl/form.hamljl")
         """
 
-        hamljl(name) = joinpath(@__DIR__, "hamljl", name)
         let io = IOBuffer()  # test the render(...) entrypoint
             render(io, hamljl("hitchhiker.hamljl"),
                 variables = (
@@ -492,7 +494,6 @@ end
 
         @test Meta.parse(HAML.Source(hamljl("hitchhiker.hamljl"))) isa Expr
 
-        @eval module Foo end
         @test includehaml(Foo, :hitchhiker, hamljl("hitchhiker.hamljl")) isa Function
         @test includehaml(Foo, :foo => hamljl("hitchhiker.hamljl"), :bar => hamljl("hitchhiker.hamljl")) == nothing
         @test Foo.hitchhiker(question="Q", answer="A") ==
@@ -539,6 +540,13 @@ end
         """
 
         @test haml"= @__FILE__" == @__FILE__
+
+        @test haml"""
+        - @include("hamljl/at-file.hamljl")
+        """ == realpath(joinpath(@__DIR__, "hamljl", "at-file.hamljl")) * "\n"
+
+        includehaml(Foo, :atfile => hamljl("at-file.hamljl"))
+        @test Foo.atfile() == realpath(joinpath(@__DIR__, "hamljl", "at-file.hamljl")) * "\n"
     end
 
     @testset "Compile-time expansion where possible" begin
