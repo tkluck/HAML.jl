@@ -41,8 +41,8 @@ macro include(relpath, args...)
     # hasproperty(__module__, sym) doesn't work at pre-compilation time
     key = (objectid(__module__), sym)
     if key ∉ files_included
-        includehaml(__module__, sym, path)
         push!(files_included, key)
+        includehaml(__module__, sym, path)
     end
 
     res = :( $(esc(sym))($args) do (content...)

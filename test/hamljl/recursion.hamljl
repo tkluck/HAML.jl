@@ -1,0 +1,4 @@
+- if $count > 1
+  - @include("recursion.hamljl", count=$count - 1)
+= $count
+-# vim: set filetype=haml:

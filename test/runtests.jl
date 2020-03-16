@@ -510,6 +510,17 @@ end
           </body>
         </html>
         """
+
+        # recursion
+        @expandsto """
+        1
+        2
+        3
+        4
+        5
+        """ haml"""
+        - @include("hamljl/recursion.hamljl", count=5)
+        """
     end
 
     @testset "File/line information" begin
