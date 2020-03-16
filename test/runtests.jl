@@ -144,17 +144,58 @@ hamljl(name) = joinpath(@__DIR__, "hamljl", name)
     end
     @testset "Whitespace" begin
         @expandsto "" haml""
-        # disabled while we re-work indentation handling
-        #@expandsto "
-        #" haml"
-        #"
-        #@expandsto "
-#
-        #" haml"
-#
-        #"
+        @expandsto "
+        " haml"
+        "
+        @expandsto "
+
+        " haml"
+
+        "
         # no closing newline
         @expandsto "<div class='hello'></div>" haml"%div.hello"
+
+        # completely empty line in the middle of an indented block
+        @expandsto """
+        <div>
+          <p>First paragraph</p>
+
+          <p>Second paragraph</p>
+        </div>
+        """ haml"""
+        %div
+          %p First paragraph
+
+          %p Second paragraph
+        """
+
+        # equally indented empty line in the middle of an indented block
+        @expandsto """
+        <div>
+          <p>First paragraph</p>
+          
+          <p>Second paragraph</p>
+        </div>
+        """ haml"""
+        %div
+          %p First paragraph
+          
+          %p Second paragraph
+        """
+
+        # overly indented empty line in the middle of an indented block
+        @expandsto """
+        <div>
+          <p>First paragraph</p>
+               
+          <p>Second paragraph</p>
+        </div>
+        """ haml"""
+        %div
+          %p First paragraph
+               
+          %p Second paragraph
+        """
     end
 
     @testset "Julia syntax embedding" begin

@@ -163,7 +163,8 @@ function parse_contentline(s::Source)
             push!(exprs, expr)
         end
         if nextchar != "\\" && nextchar != "\$"
-            newline = nextchar
+            @mustcapture s "Expected vertical whitespace" r"(?<ws>(?:\h*(?:\v|$))*)"
+            newline = nextchar * ws
             break
         end
     end
@@ -191,7 +192,7 @@ function parse_expressionline(s::Source; with_linenode=true, kwds...)
                 |
                 (?<comment>\#.*$)
                 |
-                (?<newline>($\v)?)
+                (?<newline>$(?:\h*(?:\v|$))*)
             )
         """mx
         if !isnothing(begin_of_string_literal)
