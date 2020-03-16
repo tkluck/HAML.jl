@@ -1,1 +1,2 @@
 - @output "Using the @output macro\n"
+-# vim: set filetype=haml:

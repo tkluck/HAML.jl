@@ -5,3 +5,4 @@
   %body
     #error
      %p= (1:3)[4]
+-# vim: set filetype=haml:

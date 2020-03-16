@@ -6,3 +6,4 @@
     %p= $question
     %h2 What's the answer?
     %p= $answer
+-# vim: set filetype=haml:
