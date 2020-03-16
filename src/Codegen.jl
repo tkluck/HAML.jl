@@ -69,14 +69,15 @@ function parse_tag_stanza!(code, curindent, source)
         )
     """x
         if !isnothing(openbracket)
+            loc = source.ix
             attr_expr = parse_juliacode(source, greedy=false)
-            attr_expr isa Expr || error(source, "Expecting key=value expression")
+            attr_expr isa Expr || error(source, loc, "Expecting key=value expression")
             if attr_expr.head == :(=) || attr_expr.head == :...
                 attr_expr = :( ($attr_expr,) )
             elseif attr_expr.head == :call && attr_expr.args[1] == :(=>)
                 attr_expr = :( ($attr_expr,) )
             end
-            attr_expr.head == :tuple || error(source, "Expecting key=value expression")
+            attr_expr.head == :tuple || error(source, loc, "Expecting key=value expression")
             attr = mergeattributes(attr, attr_expr.args...)
         else
             if sigil == "."
@@ -84,7 +85,7 @@ function parse_tag_stanza!(code, curindent, source)
             elseif sigil == "#"
                 attr = mergeattributes(attr, :id    => value)
             else
-                error(source, "Unknown sigil: $sigil")
+                error(source, "(unreachable) Unknown sigil: $sigil")
             end
         end
     end
@@ -102,6 +103,7 @@ function parse_tag_stanza!(code, curindent, source)
     """mx
 
     code_for_inline_val = nothing
+    inlinevalloc = source.ix
     if !isnothing(equalssign)
         startix = source.ix
         expr, head, newline = parse_expressionline(source)
@@ -116,6 +118,7 @@ function parse_tag_stanza!(code, curindent, source)
     end
 
     body = @nolinenodes quote end
+    blockloc = source.ix
     parseresult = parse_indented_block!(body, curindent, source)
     if isnothing(parseresult)
         haveblock = false
@@ -133,14 +136,15 @@ function parse_tag_stanza!(code, curindent, source)
         haveblock = true
     end
     if !isnothing(closingslash)
-        @assert isnothing(code_for_inline_val)
+        isnothing(code_for_inline_val) || error(source, inlinevalloc, "inline value not supported after /")
+        haveblock && error(source, blockloc, "block not supported after /")
         extendblock!(code, @nolinenodes quote
             @output $"<$tagname"
             $attr
             @output $" />"
         end)
     elseif haveblock
-        @assert isnothing(code_for_inline_val)
+        isnothing(code_for_inline_val) || error(source, blockloc, "block not supported after =")
         extendblock!(code, @nolinenodes quote
             @output $"<$tagname"
             $attr
@@ -305,7 +309,7 @@ function parse_indented_block!(code, curindent, source)
                     @output $"<!DOCTYPE html>"
                 end)
             else
-                error(source, "Unrecognized sigil: $sigil")
+                error(source, "(unreachable) Unrecognized sigil: $sigil")
             end
         else
             error(source, "Unrecognized")

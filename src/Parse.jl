@@ -82,20 +82,29 @@ function parse_juliacode(s::Source, snippet::AbstractString, snippet_location::S
     return with_linenode ? Expr(:block, loc, expr) : expr
 end
 
-Base.error(s::Source, msg) = error(s, s.ix, msg)
+struct ParseError
+    source :: Source
+    error  :: Any
+end
 
-function Base.error(s::Source, ix::Int, msg)
-    line, col, linenode = linecol(s, ix)
-    lines = split(s.text, "\n")
+linecol(p::ParseError) = linecol(p.source)
+linecol(p::LoadError) = linecol(p.error.source)
+
+function Base.show(io::IO, err::ParseError)
+    line, col, linenode = linecol(err)
+    lines = split(err.source.text, "\n")
     source_snippet = join(lines[max(1, line-1) : line], "\n")
     point_at_column = " " ^ (col - 1) * "^^^ here"
     message = """
-    $msg at $(linenode.file):$(linenode.line):
+    $(err.error) at $(linenode.file):$(linenode.line):
     $source_snippet
     $point_at_column
     """
-    error(message)
+    print(io, message)
 end
+
+Base.error(s::Source, msg) = error(s, s.ix, msg)
+Base.error(s::Source, ix::Int, msg) = throw(ParseError(Source(s.__source__, s.text, ix), msg))
 
 function advance!(s::Source, delta)
     s.ix += delta

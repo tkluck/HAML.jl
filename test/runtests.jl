@@ -7,6 +7,19 @@ macro expandsto(str1, str2)
     :( @test $(esc(str1)) == $(esc(str2)) )
 end
 
+macro errorat(rowcol, expr)
+    quote
+        err = try
+            eval($(QuoteNode(expr)))
+        catch err
+            err isa LoadError || rethrow(err)
+            err
+        end
+        loc = HAML.Parse.linecol(err)
+        (loc[1], loc[2]) == $(esc(rowcol))
+    end
+end
+
 module Foo end
 hamljl(name) = joinpath(@__DIR__, "hamljl", name)
 
@@ -588,6 +601,46 @@ hamljl(name) = joinpath(@__DIR__, "hamljl", name)
 
         includehaml(Foo, :atfile => hamljl("at-file.hamljl"))
         @test Foo.atfile() == realpath(joinpath(@__DIR__, "hamljl", "at-file.hamljl")) * "\n"
+    end
+
+    @testset "Syntax error reporting" begin
+        @test @errorat (1, 2) haml"""
+        - %a
+        """
+
+        @test @errorat (2, 2) haml"""
+        - a = 1
+        - %a
+        """
+
+        @test @errorat (1, 3) haml"""
+        %a(3)
+        """
+
+        # TODO
+        #@test @errorat (1, 12) haml"""
+        #%a(href=1, 3)
+        #"""
+
+        @test @errorat (1, 6) haml"""
+        %br/ Syntax error: content after /
+        """
+
+        @test @errorat (2, 1) haml"""
+        %br/
+          Syntax error: a block after /
+        """
+
+        @test @errorat (2, 1) haml"""
+        %p= 3
+          Syntax error: a block after =
+        """
+
+        @test @errorat (3, 3) haml"""
+        %div
+            %div
+          %div
+        """
     end
 
     @testset "Compile-time expansion where possible" begin
