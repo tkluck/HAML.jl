@@ -214,7 +214,7 @@ function parse_expressionline(s::Source; with_linenode=true, kwds...)
                 !isnothing(comment)
             continue
         else
-            snippet = SubString(s.text, startix, s.ix - 1)
+            snippet = SubString(s.text, startix, s.ix - 1 - length(newline))
             expr = parse_juliacode(s, snippet; kwds..., with_linenode=false)
             if expr isa Expr && expr.head == :incomplete
                 expr = parse_juliacode(s, "$snippet\nend", snippet; kwds..., with_linenode=false)

@@ -168,6 +168,16 @@ hamljl(name) = joinpath(@__DIR__, "hamljl", name)
         # no closing newline
         @expandsto "<div class='hello'></div>" haml"%div.hello"
 
+        # extra closing newline after expression
+        @expandsto """
+        <p>42</p>
+
+        """ haml"""
+        %p= 42
+
+        """
+
+
         # completely empty line in the middle of an indented block
         @expandsto """
         <div>
