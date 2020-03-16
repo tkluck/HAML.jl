@@ -605,6 +605,38 @@ hamljl(name) = joinpath(@__DIR__, "hamljl", name)
         """ haml"""
         - @include("hamljl/recursion.hamljl", count=5)
         """
+
+        @expandsto """
+        <dl>
+          <dt>Module</dt>
+          <dd>Main</dd>
+          <dt>Directory</dt>
+          <dd>$(@__DIR__)</dd>
+          <dt>File</dt>
+          <dd>$(@__FILE__)</dd>
+        </dl>
+        """ haml"""
+        %dl
+          %dt Module
+          %dd= @__MODULE__
+          %dt Directory
+          %dd= @__DIR__
+          %dt File
+          %dd= @__FILE__
+        """
+
+        includehaml(Foo, :context, hamljl("context.hamljl"))
+
+        @test Foo.context() == """
+        <dl>
+          <dt>Module</dt>
+          <dd>Main.Foo</dd>
+          <dt>Directory</dt>
+          <dd>$(joinpath(@__DIR__, "hamljl"))</dd>
+          <dt>File</dt>
+          <dd>$(hamljl("context.hamljl"))</dd>
+        </dl>
+        """
     end
 
     @testset "File/line information" begin

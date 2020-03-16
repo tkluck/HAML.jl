@@ -343,7 +343,7 @@ function merge_outputs(expr)
                 extendoutput!(prev.args, a.args...)
                 push!(args, prev)
             else
-                prev = deepcopy(a)
+                prev = a
                 push!(args, prev)
             end
         end
