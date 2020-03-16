@@ -1,5 +1,7 @@
 # HAML.jl
 
+[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://tkluck.github.io/HAML.jl/dev/)
+
 HTML Abstract Markup Language for Julia. Inspired by [Ruby's HAML](http://haml.info/).
 
 | **Build Status**                                                | **Test coverage**                                       |
