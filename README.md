@@ -1,6 +1,6 @@
 # HAML.jl
 
-[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://tkluck.github.io/HAML.jl/dev/)
+[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://tkluck.github.io/HAML.jl/stable/)
 
 HTML Abstract Markup Language for Julia. Inspired by [Ruby's HAML](http://haml.info/).
 
@@ -52,14 +52,9 @@ This distinguishes them from file-local variables.
 
 ## Syntax
 
-We don't have a syntax reference for `HAML.jl` yet. It mostly follows
-[Ruby's syntax document](http://haml.info/docs/yardoc/file.REFERENCE.html) with
-the following exceptions:
-
- - use named tuple syntax for attributes
- - use `- @include` for including `.hamljl` files.
-
- See the [test cases](test/runtests.jl) for examples.
+If you are already familiar with Ruby-flavoured HAML, [read about the
+differences here][fromruby]. If not, either use read the [getting started guide][gettingstarted]
+or the [syntax reference][syntax].
 
 [travis-img]: https://travis-ci.org/tkluck/HAML.jl.svg?branch=master
 [travis-url]: https://travis-ci.org/tkluck/HAML.jl
@@ -69,3 +64,7 @@ the following exceptions:
 
 [codecov-img]: https://codecov.io/gh/tkluck/HAML.jl/branch/master/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/tkluck/HAML.jl
+
+[fromruby]: https://tkluck.github.io/HAML.jl/stable/fromruby/
+[gettingstarted]: https://tkluck.github.io/HAML.jl/stable/getting-started/
+[syntax]: https://tkluck.github.io/HAML.jl/stable/syntax/
