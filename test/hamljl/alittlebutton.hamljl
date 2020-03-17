@@ -1,2 +1,4 @@
+/ button below
 %button(onclick="javascript:alert($($alert))")= $label
+/ button above
 -# vim: set filetype=haml:

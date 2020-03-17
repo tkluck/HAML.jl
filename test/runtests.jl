@@ -177,6 +177,21 @@ hamljl(name) = joinpath(@__DIR__, "hamljl", name)
 
         """
 
+        # keep indentation even with intermediate code lines
+        @expandsto """
+        <div>
+          <p>Hello</p>
+          <p>How are you?</p>
+          <p>Bye</p>
+        </div>
+        """ haml"""
+        %
+          %p Hello
+          - msg = "How are you?"
+          %p= msg
+          - msg = "Bye"
+          %p= msg
+        """
 
         # completely empty line in the middle of an indented block
         @expandsto """
@@ -546,7 +561,9 @@ hamljl(name) = joinpath(@__DIR__, "hamljl", name)
         @expandsto """
         <form>
           <p>Here's a little button:</p>
+          <!-- button below -->
           <button onclick='javascript:alert&#40;Thank you for clicking&#41;'>Click me</button>
+          <!-- button above -->
           <p>Did you see the little button?</p>
         </form>
         """ haml"""

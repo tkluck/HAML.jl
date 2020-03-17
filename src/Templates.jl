@@ -45,9 +45,9 @@ macro include(relpath, args...)
         includehaml(__module__, sym, path)
     end
 
-    res = :( $(esc(sym))($args) do (content...)
+    res = :( $(esc(sym))($args, $(Expr(:hamlindentation))) do content...
         $(Expr(:hamloutput, :(content...)))
-    end )
+    end)
     return res
 end
 
@@ -58,9 +58,9 @@ end
 Define methods for the function `mod.fn` that allow rendering the HAML
 template in the file `path`. These methods have the following signatures:
 
-    fn(io::IO; variables...)
-    fn(f::Function; variables...)
-    fn(; variables...)
+    fn(io::IO, indent=""; variables...)
+    fn(f::Function, indent=""; variables...)
+    fn(indent=""; variables...)
 
 where the output of the template will be written to `io` / passed to `f`
 / returned respectively.
@@ -73,7 +73,7 @@ end
 
 function _includehaml(mod::Module, fn::Symbol, path, indent="")
     s = Source(path)
-    code = generate_haml_writer_codeblock(mod, s, string(indent))
+    code = generate_haml_writer_codeblock(mod, s, Expr(:string, indent, :indent))
     code = replace_expression_nodes_unescaped(:hamloutput, code) do esc, content...
         :( f($(map(esc, content)...)) )
     end
@@ -83,12 +83,12 @@ function _includehaml(mod::Module, fn::Symbol, path, indent="")
     end
     fn = esc(fn)
     code = quote
-        $fn(f::Function; variables...) = $code
-        $fn(io::IO; variables...) = $fn(; variables...) do content...
+        $fn(f::Function, indent=""; variables...) = $code
+        $fn(io::IO, indent=""; variables...) = $fn(indent; variables...) do content...
             write(io, content...)
         end
-        $fn(; variables...) = let io = IOBuffer()
-            $fn(; variables...) do (content...)
+        $fn(indent=""; variables...) = let io = IOBuffer()
+            $fn(indent; variables...) do (content...)
                 write(io, content...)
             end
             String(take!(io))

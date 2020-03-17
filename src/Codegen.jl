@@ -30,11 +30,29 @@ end
 indentlength(s) = mapreduce(c -> c == '\t' ? 8 : 1, +, s, init=0)
 indentlength(::Nothing) = -1
 
+isexpr(head, val) = false
+isexpr(head, val::Expr) = val.head == head
+isstringexpr(val) = isexpr(:string, val)
+
+concatindent(a, b) = if isstringexpr(a) && isstringexpr(b)
+    Expr(:string, a.args..., b.args...)
+elseif isstringexpr(a)
+    Expr(:string, a.args..., b)
+elseif isstringexpr(b)
+    Expr(:string, a, b.args...)
+else
+    Expr(:string, a, b)
+end
+concatindent(a::AbstractString, b::AbstractString) = a * b
+
 function materialize_indentation(expr, cur="")
+    expr = replace_expression_nodes_unescaped(:hamlindentation, expr) do args...
+        Expr(:hamlindentation, args...)
+    end
     if !hasnode(:hamlindented, expr) && !hasnode(:hamlindentation, expr)
         return expr
     elseif expr isa Expr && expr.head == :hamlindented
-        return materialize_indentation(expr.args[2], cur * expr.args[1])
+        return materialize_indentation(expr.args[2], concatindent(cur, expr.args[1]))
     elseif expr isa Expr && expr.head == :hamlindentation
         return cur
     elseif expr isa Expr
@@ -204,7 +222,7 @@ function parse_indented_block!(code, curindent, source)
                 continue
             else
                 isnothing(curindent) || firstindent == indent || error(source, "Jagged indentation")
-                extendblock!(code, :( @output $newline @indentation ))
+                !isempty(newline) && extendblock!(code, :( @output $newline @indentation ))
             end
 
             if sigil in ("%", "#", ".")
