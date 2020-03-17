@@ -52,7 +52,7 @@ Use `$` for interpolation in literal text instead of `#{...}`. Example:
 
 !!! note
 
-    If you need to combine this with [keyword parameters to a template file](@ref HAML.includehaml),
+    If you need to combine this with keyword parameters to a template file,
     you'll need double quotes:
 
     ```
