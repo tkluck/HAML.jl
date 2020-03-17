@@ -94,9 +94,9 @@ hamljl(name) = joinpath(@__DIR__, "hamljl", name)
             hash1() = OrderedDict(:bread => "white", :filling => "peanut butter and jelly")
             hash2() = OrderedDict(:bread => "whole wheat")
             @expandsto """
-            <sandwich bread='whole wheat' filling='peanut butter and jelly' delicious='true' />
+            <sandwich bread='whole wheat' filling='peanut butter and jelly' delicious='yes' />
             """ haml"""
-            %sandwich(hash1()..., hash2()..., delicious = "true")/
+            %sandwich(hash1()..., hash2()..., delicious = "yes")/
             """
         end
 
