@@ -108,6 +108,20 @@ hamljl(name) = joinpath(@__DIR__, "hamljl", name)
             """
         end
 
+        let items = ["foo", "bar"]
+            @expandsto """
+            <div id='foo-bar'></div>
+            """ haml"""
+            %(id=items)
+            """
+
+            @expandsto """
+            <div class='foo bar'></div>
+            """ haml"""
+            %(class=items)
+            """
+        end
+
         @expandsto """
         <a href='/posts' data-author-id='123' data-category='7'>Posts By Author</a>
         """ haml"""
