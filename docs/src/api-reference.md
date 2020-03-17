@@ -6,6 +6,12 @@
 @haml_str
 includehaml
 render
+@include
+@sourcefile
+@cdatafile
+@surround
+@precede
+@succeed
 ```
 
 ## Types

@@ -426,6 +426,8 @@ and has access to the same variables.
 
 # Example
 ```jldoctest
+julia> using HAML
+
 julia> haml"%p Hello, world"
 "<p>Hello, world</p>"
 ```

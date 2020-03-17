@@ -52,7 +52,7 @@ Use `$` for interpolation in literal text instead of `#{...}`. Example:
 
 !!! note
 
-    If you need to combine this with [keyword parameters to a template file](todo),
+    If you need to combine this with [keyword parameters to a template file](@ref HAML.includehaml),
     you'll need double quotes:
 
     ```
@@ -61,7 +61,7 @@ Use `$` for interpolation in literal text instead of `#{...}`. Example:
 
 ## Helper macros/methods may need to be imported
 
-If you use [`@haml_str`](@ref) or [`includehaml`](@ref) the HAML code runs in a
+If you use [`@haml_str`](@ref) or [`HAML.includehaml`](@ref) the HAML code runs in a
 module you own. If you want to use macros or helper methods (e.g.,
 [`@include`](@ref) or [`@surround`](@ref) then you need to either use `using
 HAML` or import them.

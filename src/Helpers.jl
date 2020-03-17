@@ -9,18 +9,43 @@ end
 precede(f, before) = surround(f, before, () -> nothing)
 succeed(f, after) = surround(f, () -> nothing, after)
 
+"""
+    - @surround(before, after) do
+      <haml block>
+
+Surround the output of `<haml block>` with `before` and `after` with
+no space in between.
+"""
 macro surround(before, after=before)
     return :( surround(() -> $(Expr(:hamloutput, esc(before))), () -> $(Expr(:hamloutput, esc(after)))) )
 end
 
+"""
+    - @precede(before) do
+      <haml block>
+
+Precede the output of `<haml block>` with `before` with no space in between.
+"""
 macro precede(before)
     return :( precede(() -> $(Expr(:hamloutput, esc(before)))) )
 end
 
+"""
+    - @succeed(after) do
+      <haml block>
+
+Follow the output of `<haml block>` with `after` with no space in between.
+"""
 macro succeed(after)
     return :( succeed(() -> $(Expr(:hamloutput, esc(after)))) )
 end
 
+"""
+    - @sourcefile(relpath)
+
+Include the contents of the file at `relpath` (relative to the current
+file's directory) literally into the output.
+"""
 macro sourcefile(relpath)
     at_dir = getproperty(Base, Symbol("@__DIR__"))
     dir = macroexpand(__module__, Expr(:macrocall, at_dir, __source__))
@@ -41,6 +66,13 @@ macro sourcefile(relpath)
     code
 end
 
+"""
+    - @cdatafile(relpath)
+
+Include the contents of the file at `relpath` (relative to the current
+file's directory) as a CDATA section in the output. Any occurrences
+of `]]>` are suitably escaped.
+"""
 macro cdatafile(relpath)
     at_dir = getproperty(Base, Symbol("@__DIR__"))
     dir = macroexpand(__module__, Expr(:macrocall, at_dir, __source__))
