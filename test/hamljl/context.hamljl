@@ -1,0 +1,8 @@
+%dl
+  %dt Module
+  %dd= @__MODULE__
+  %dt Directory
+  %dd= @__DIR__
+  %dt File
+  %dd= @__FILE__
+-# vim: filetype=haml:
