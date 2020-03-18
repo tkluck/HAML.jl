@@ -234,6 +234,7 @@ function parse_indented_block!(code, curindent, source)
                 end
                 newline = ""
             elseif sigil == "-"
+                startix = source.ix
                 loc = LineNumberNode(source)
                 expr, head, newline = parse_expressionline(source, with_linenode=false)
                 if head in (:for, :while)
@@ -284,7 +285,7 @@ function parse_indented_block!(code, curindent, source)
                     extendblock!(code, esc(expr))
                     newline = ""
                 else
-                    error(source, "Unexpected expression head: $head")
+                    error(source, startix, "Unexpected expression head: $head")
                 end
             elseif sigil == "="
                 startix = source.ix
