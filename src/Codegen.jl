@@ -280,7 +280,7 @@ function parse_indented_block!(code, curindent, source)
                         end
                     end)
                 elseif isnothing(head)
-                    push!(code.args, LineNumberNode(source))
+                    push!(code.args, loc)
                     extendblock!(code, esc(expr))
                     newline = ""
                 else
