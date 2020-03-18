@@ -551,6 +551,20 @@ hamljl(name) = joinpath(@__DIR__, "hamljl", name)
         - else # with a comment
           %p I love Big Brother
         """
+
+        @expandsto """
+        <p>Hello</p>
+        """ haml"""
+        - begin
+          %p Hello
+        """
+
+        @expandsto """
+        <p>Hello</p>
+        """ haml"""
+        - let greeting = "Hello"
+          %p= greeting
+        """
     end
 
     @testset "File format" begin

@@ -6,7 +6,7 @@ import DataStructures: OrderedDict
 import Markdown: htmlesc
 
 import ..Attributes: mergeattributes, writeattributes
-import ..Hygiene: expand_macros_hygienic, replace_expression_nodes_unescaped, hasnode, mapexpr
+import ..Hygiene: expand_macros_hygienic, replace_expression_nodes_unescaped, hasnode, mapexpr, escapelet
 import ..Parse: @capture, @mustcapture, Source, parse_juliacode, parse_contentline, parse_expressionline
 
 function filterlinenodes(expr)
@@ -280,6 +280,32 @@ function parse_indented_block!(code, curindent, source)
                             $expr
                         end
                     end)
+                elseif head == :block
+                    push!(code.args, loc)
+                    parseresult = parse_indented_block!(expr, indent, source)
+                    extendblock!(code, expr)
+                    if !isnothing(parseresult)
+                        _, newline = parseresult
+                    end
+                elseif head == :let
+                    expr = escapelet(expr)
+                    push!(code.args, loc)
+                    extendblock!(code, expr)
+                    parseresult = parse_indented_block!(expr.args[2], indent, source)
+                    if !isnothing(parseresult)
+                        _, newline = parseresult
+                    end
+                # TODO: this works but the resulting function closes over `io`
+                # and it may be in module scope. We need to define proper semantics
+                # before exposing this.
+                #elseif head == :function
+                #    expr.args[1] = esc(expr.args[1])
+                #    push!(code.args, loc)
+                #    extendblock!(code, expr)
+                #    parseresult = parse_indented_block!(expr.args[2], indent, source)
+                #    if !isnothing(parseresult)
+                #        _, newline = parseresult
+                #    end
                 elseif isnothing(head)
                     push!(code.args, loc)
                     extendblock!(code, esc(expr))

@@ -77,4 +77,18 @@ function expand_macros_hygienic(outermod, innermod, expr)
     return expr
 end
 
+escapeassignments(expr) = expr
+escapeassignments(expr::Expr) = if expr.head == :block
+    return Expr(:block, map(escapeassignments, expr.args)...)
+elseif expr.head == :(=)
+    return Expr(:(=), map(esc, expr.args)...)
+else
+    return expr
+end
+
+escapelet(expr::Expr) = begin
+    @assert expr.head == :let
+    return Expr(:let, escapeassignments(expr.args[1]), expr.args[2:end]...)
+end
+
 end # module
