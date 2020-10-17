@@ -97,13 +97,13 @@ haml"""%a(href="/", title="click me") Click here!""" |> println
 ```
 
 Any underscores in the key are replaced by dashes. If the desired attribute
-is not a valid Julia symbol, it can be encoded using `Symbol(...) =>`:
+is not a valid Julia symbol, use the `var"..."` syntax:
 
 ```@repl syntax-reference
 haml"""%(foo_bar="foo-bar")""" |> println
 
 haml"""
-%html(xmlns = "http://www.w3.org/1999/xhtml", Symbol("xml:lang") => "en", lang="en")
+%html(xmlns = "http://www.w3.org/1999/xhtml", var"xml:lang"="en", lang="en")
 """ |> println
 ```
 

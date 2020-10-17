@@ -72,6 +72,11 @@ hamljl(name) = joinpath(@__DIR__, "hamljl", name)
         @expandsto """
         <html xmlns='http://www.w3.org/1999/xhtml' xml:lang='en' lang='en'></html>
         """ haml"""
+        %html(xmlns = "http://www.w3.org/1999/xhtml", var"xml:lang"="en", lang="en")
+        """
+        @expandsto """
+        <html xmlns='http://www.w3.org/1999/xhtml' xml:lang='en' lang='en'></html>
+        """ haml"""
         %html(xmlns = "http://www.w3.org/1999/xhtml", Symbol("xml:lang") => "en", lang="en")
         """
         @expandsto """
