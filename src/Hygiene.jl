@@ -12,7 +12,7 @@ macro hygienic(expr)
     return expr
 end
 
-const at_hygienic = getproperty(@__MODULE__, Symbol("@hygienic"))
+const at_hygienic = var"@hygienic"
 
 function make_hygienic(outermod, expr)
     dummy_linenode = LineNumberNode(@__LINE__, Symbol(@__FILE__))

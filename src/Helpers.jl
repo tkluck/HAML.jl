@@ -47,7 +47,7 @@ Include the contents of the file at `relpath` (relative to the current
 file's directory) literally into the output.
 """
 macro sourcefile(relpath)
-    at_dir = getproperty(Base, Symbol("@__DIR__"))
+    at_dir = Base.var"@__DIR__"
     dir = macroexpand(__module__, Expr(:macrocall, at_dir, __source__))
 
     path = realpath(joinpath(dir, relpath))
@@ -74,7 +74,7 @@ file's directory) as a CDATA section in the output. Any occurrences
 of `]]>` are suitably escaped.
 """
 macro cdatafile(relpath)
-    at_dir = getproperty(Base, Symbol("@__DIR__"))
+    at_dir = Base.var"@__DIR__"
     dir = macroexpand(__module__, Expr(:macrocall, at_dir, __source__))
 
     path = realpath(joinpath(dir, relpath))

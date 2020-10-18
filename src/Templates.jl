@@ -32,7 +32,7 @@ macro include(relpath, args...)
         throw(ArgumentError("Invalid use of @include: $(args...)"))
     end
 
-    at_dir = getproperty(Base, Symbol("@__DIR__"))
+    at_dir = Base.var"@__DIR__"
     dir = macroexpand(__module__, Expr(:macrocall, at_dir, __source__))
 
     path = realpath(joinpath(dir, relpath))
