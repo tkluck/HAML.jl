@@ -170,13 +170,19 @@ function parse_tag_stanza!(code, curindent, source)
             $body
             @output $"</$tagname>"
         end)
-    else
+    elseif !isnothing(code_for_inline_val)
         extendblock!(code, @nolinenodes quote
             @output $"<$tagname"
             $attr
             @output ">"
             $code_for_inline_val
             @output $"</$tagname>"
+        end)
+    else
+        extendblock!(code, @nolinenodes quote
+            @output $"<$tagname"
+            $attr
+            @output $"></$tagname>"
         end)
     end
     return newline

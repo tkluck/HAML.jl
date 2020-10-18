@@ -761,6 +761,11 @@ hamljl(name) = joinpath(@__DIR__, "hamljl", name)
         """) isa String
 
         @test @macroexpand(haml"""
+        %p Hallo
+        %a(href="./index.html")
+        """) isa String
+
+        @test @macroexpand(haml"""
         !!! 5
         %html
           %head
