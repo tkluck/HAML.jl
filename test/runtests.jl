@@ -570,6 +570,16 @@ hamljl(name) = joinpath(@__DIR__, "hamljl", name)
         - let greeting = "Hello"
           %p= greeting
         """
+
+        @expandsto """
+        <p>hello</p>
+        <p>world</p>
+        """ haml"""
+        - macro paragraph(text)
+          %p= text
+        - @paragraph("hello")
+        - @paragraph("world")
+        """
     end
 
     @testset "File format" begin
@@ -775,5 +785,25 @@ hamljl(name) = joinpath(@__DIR__, "hamljl", name)
               %li= item1
               %li= item2
         """).head == :string
+
+        @test_broken @macroexpand(haml"""
+        - macro paragraph(text)
+          %p= text
+        - @paragraph("hello")
+        - @paragraph("world")
+        """).head == :string
+    end
+
+    @testset "Macros" begin
+        haml"""
+        - macro my_first_macro()
+          %p Hello from my first macro
+        """
+
+        @expandsto """
+        <p>Hello from my first macro</p>
+        """ haml"""
+        - @my_first_macro
+        """
     end
 end

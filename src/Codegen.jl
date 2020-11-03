@@ -7,6 +7,7 @@ import Markdown: htmlesc
 
 import ..Attributes: mergeattributes, writeattributes
 import ..Hygiene: expand_macros_hygienic, replace_expression_nodes_unescaped, hasnode, mapexpr, escapelet
+import ..Hygiene: make_hygienic, mapesc
 import ..Parse: @capture, @mustcapture, Source, parse_juliacode, parse_contentline, parse_expressionline
 
 function filterlinenodes(expr)
@@ -312,6 +313,20 @@ function parse_indented_block!(code, curindent, source)
                 #    if !isnothing(parseresult)
                 #        _, newline = parseresult
                 #    end
+                elseif head == :macro
+                    push!(code.args, loc)
+                    extendblock!(code, expr)
+                    body_of_fun = @nolinenodes quote
+                    end
+                    expr.args[2] = body_of_fun #Expr(:block, Expr(:quote, body_of_fun))
+                    parseresult = parse_indented_block!(body_of_fun, indent, source)
+                    if !isnothing(parseresult)
+                        _, newline = parseresult
+                        extendblock!(body_of_fun, @nolinenodes quote
+                            @output $newline
+                        end)
+                    end
+                    newline = ""
                 elseif isnothing(head)
                     push!(code.args, loc)
                     extendblock!(code, esc(expr))
@@ -424,8 +439,28 @@ function Meta.parse(source::Source; kwds...)
     return code
 end
 
+function extract_toplevel_macro_defs!(code)
+    res = []
+    if isexpr(:block, code)
+        for a in code.args
+            isexpr(:macro, a) && push!(res, a)
+        end
+        filter!(a -> !isexpr(:macro, a), code.args)
+    end
+    return res
+end
+
 function generate_haml_writer_codeblock(usermod, source, extraindent="")
     code = Meta.parse(source)
+    macros = extract_toplevel_macro_defs!(code)
+    for m in macros
+        m.args[2] = mapesc(m.args[2]) do a
+            Expr(:$, a)
+        end
+        m.args[2] = Expr(:block, Expr(:quote, m.args[2]))
+        m = expand_macros_hygienic(@__MODULE__, usermod, m)
+        Base.eval(usermod, m)
+    end
     code = expand_macros_hygienic(@__MODULE__, usermod, code)
     code = Expr(:hamlindented, extraindent, code)
     code = materialize_indentation(code)
