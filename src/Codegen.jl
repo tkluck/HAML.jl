@@ -1,7 +1,5 @@
 module Codegen
 
-import Base.Meta: quot
-
 import Markdown: htmlesc
 
 import ..Hygiene: expand_macros_hygienic, replace_expression_nodes_unescaped, hasnode, mapexpr
