@@ -1,233 +1,364 @@
 module Parse
 
-import Markdown: htmlesc
+import DataStructures: OrderedDict
 
-import ..Hygiene: hasnode
+import ..Attributes: mergeattributes, writeattributes
+import ..Hygiene: mapexpr, escapelet
+import ..SourceTools: @capture, @mustcapture, Source, parse_juliacode, parse_contentline, parse_expressionline
 
-mutable struct Source
-    __source__ :: LineNumberNode
-    text       :: String
-    ix         :: Int
-end
-
-"""
-    HAML.Source("/path/to/file.hamljl")
-    HAML.Source(::LineNumberNode, ::AbstractString)
-
-Represent Julia-flavoured HAML source code that can be parsed using
-the `Meta.parse` function.
-"""
-Source(__source__::LineNumberNode, text::AbstractString) = Source(__source__, text, 1)
-Source(path::AbstractString) = Source(LineNumberNode(1, Symbol(path)), read(path, String), 1)
-
-function linecol(s::Source, ix::Int=s.ix)
-    line, col = 1, 1
-    i = firstindex(s.text)
-    while i < ix
-        if s.text[i] == '\n'
-            line += 1
-            col = 1
-        else
-            col += 1
-        end
-        i = nextind(s.text, i)
-    end
-    return line, col, LineNumberNode(line + s.__source__.line - 1, s.__source__.file)
-end
-
-Base.LineNumberNode(s::Source, ix::Int=s.ix) = linecol(s, ix)[3]
-
-Base.getindex(s::Source, ix::Int) = s.text[s.ix + ix - 1]
-Base.getindex(s::Source, ix::AbstractRange) = SubString(s.text, s.ix .+ ix .- 1)
-
-Base.isempty(s::Source) = s.ix > length(s.text)
-
-Base.match(needle::Regex, haystack::Source, args...; kwds...) = match(needle, SubString(haystack.text, haystack.ix), args...; kwds...)
-
-function _replace_dummy_linenodes(expr, origin::LineNumberNode)
-    if !hasnode(:macrocall, expr)
-        return expr
-    elseif expr isa Expr && expr.head == :macrocall && expr.args[2].file == :none
-        delta = expr.args[2].line - 1
-        line = LineNumberNode(origin.line + delta, origin.file)
-        return Expr(:macrocall, expr.args[1], line, expr.args[3:end]...)
-    elseif expr isa Expr
-        args = Vector{Any}(undef, length(expr.args))
-        map!(a -> _replace_dummy_linenodes(a, origin), args, expr.args)
+function filterlinenodes(expr)
+    if expr isa Expr && expr.head == :block
+        args = filter(e -> !(e isa LineNumberNode), expr.args)
         return Expr(expr.head, args...)
+    elseif expr isa Expr && expr.head == :$
+        return expr
+    elseif expr isa Expr
+        return mapexpr(filterlinenodes, expr)
     else
         return expr
     end
 end
 
-function parse_juliacode(s::Source; kwds...)
-    expr, offset = Base.Meta.parse(s.text, s.ix; kwds...)
-    expr = _replace_dummy_linenodes(expr, LineNumberNode(s))
-    advance!(s, offset - s.ix)
-    expr
+macro nolinenodes(expr)
+    @assert expr.head == :quote
+    return esc(mapexpr(filterlinenodes, expr))
 end
 
-function parse_juliacode(s::Source, snippet::AbstractString, snippet_location::SubString = snippet; raise=true, with_linenode=true, kwds...)
-    @assert snippet_location.string == s.text
-    ix = snippet_location.offset + 1
-    expr = Base.Meta.parse(snippet; raise=false, kwds...)
-    loc = LineNumberNode(s, ix)
-    expr = _replace_dummy_linenodes(expr, loc)
-    if raise && expr isa Expr && expr.head == :error
-        error(s, ix, expr.args[1])
-    end
-    if expr isa Expr && expr.head == :incomplete
-        return expr
-    end
-    return with_linenode ? Expr(:block, loc, expr) : expr
-end
+indentlength(s) = mapreduce(c -> c == '\t' ? 8 : 1, +, s, init=0)
+indentlength(::Nothing) = -1
 
-struct ParseError
-    source :: Source
-    error  :: Any
-end
-
-linecol(p::ParseError) = linecol(p.source)
-linecol(p::LoadError) = linecol(p.error.source)
-
-function Base.show(io::IO, err::ParseError)
-    line, col, linenode = linecol(err)
-    lines = split(err.source.text, "\n")
-    source_snippet = join(lines[max(1, line-1) : line], "\n")
-    point_at_column = " " ^ (col - 1) * "^^^ here"
-    message = """
-    $(err.error) at $(linenode.file):$(linenode.line):
-    $source_snippet
-    $point_at_column
-    """
-    print(io, message)
-end
-
-Base.error(s::Source, msg) = error(s, s.ix, msg)
-Base.error(s::Source, ix::Int, msg) = throw(ParseError(Source(s.__source__, s.text, ix), msg))
-
-function advance!(s::Source, delta)
-    s.ix += delta
-end
-
-function capture(haystack, needle)
-    # eval into Main to avoid Revise.jl compaining about eval'ing "into
-    # the closed module HAML.Parse".
-    r = Base.eval(Main, needle)
-    hay = esc(haystack)
-    captures = Base.PCRE.capture_names(r.regex)
-    if !isempty(captures)
-        maxix = maximum(keys(captures))
-        symbols = map(1:maxix) do ix
-            capturename = get(captures, ix, "_")
-            esc(Symbol(capturename))
+function extendblock!(block, expr)
+    @assert block isa Expr && block.head == :block
+    if expr isa Expr && expr.head == :block
+        for e in expr.args
+            extendblock!(block, e)
         end
-        assign = :( ($(symbols...),) = m.captures )
     else
-        assign = :( )
+        push!(block.args, expr)
     end
-    return quote
-        m = match($r, $hay.text, $hay.ix, Base.PCRE.ANCHORED)
-        if isnothing(m)
-            false
+end
+
+function parse_tag_stanza!(code, curindent, source)
+    @mustcapture source "Expecting a tag name" r"(?:%(?<tagname>[A-Za-z0-9]+)?)?"
+    tagname = something(tagname, "div")
+
+    attr = OrderedDict()
+    while @capture source r"""
+        (?=(?<openbracket>\())
+        |
+        (?:
+            (?<sigil>\.|\#)
+            (?<value>[A-Za-z0-9][A-Za-z0-9-]*)
+        )
+    """x
+        if !isnothing(openbracket)
+            loc = source.ix
+            attr_expr = parse_juliacode(source, greedy=false)
+            attr_expr isa Expr || error(source, loc, "Expecting key=value expression")
+            if attr_expr.head == :(=) || attr_expr.head == :...
+                attr_expr = :( ($attr_expr,) )
+            elseif attr_expr.head == :call && attr_expr.args[1] == :(=>)
+                attr_expr = :( ($attr_expr,) )
+            end
+            attr_expr.head == :tuple || error(source, loc, "Expecting key=value expression")
+            attr = mergeattributes(attr, attr_expr.args...)
         else
-            $assign
-            advance!($hay, length(m.match))
-            true
-        end
-    end
-end
-
-macro capture(haystack, needle)
-    return capture(haystack, needle)
-end
-
-macro mustcapture(haystack, msg, needle)
-    return quote
-        succeeded = $(capture(haystack, needle))
-        succeeded || error($(esc(haystack)), $msg)
-    end
-end
-
-function parse_contentline(s::Source)
-    exprs = []
-    newline = ""
-    while !isempty(s)
-        @mustcapture s "Expecting literal content or interpolation" r"""
-            (?<literal>[^\\\$\v]*)
-            (?<nextchar>[\\\$\v]?)
-        """mx
-        if nextchar == "\\"
-            @mustcapture s "Expecting escaped character" r"(?<escaped_char>.)"
-            if escaped_char == "\\" || escaped_char == "\$"
-                literal *= escaped_char
+            if sigil == "."
+                attr = mergeattributes(attr, :class => value)
+            elseif sigil == "#"
+                attr = mergeattributes(attr, :id    => value)
             else
-                literal *= nextchar * escaped_char
+                error(source, "(unreachable) Unknown sigil: $sigil")
             end
         end
-        !isempty(literal) && push!(exprs, literal)
-        if nextchar == "\$"
-            expr = esc(parse_juliacode(s, greedy=false))
-            expr = :( $htmlesc($string($expr)) )
-            push!(exprs, expr)
-        end
-        if nextchar != "\\" && nextchar != "\$"
-            @mustcapture s "Expected vertical whitespace" r"(?<ws>(?:\h*(?:\v|$))*)"
-            newline = nextchar * ws
-            break
-        end
     end
-    expr = isempty(exprs) ? nothing : Expr(:hamloutput, exprs...)
-    return expr, newline
-end
 
-function parse_expressionline(s::Source; with_linenode=true, kwds...)
-    loc = LineNumberNode(s)
-    startix = s.ix
-    while !isempty(s)
-        @mustcapture s "Expecting Julia expression" r"""
-            [^'",\#\v]*
-            (?:
-                (?=(?<begin_of_string_literal>['"]))
-                |
-                (?<comma_before_end_of_line>
-                    ,
-                    \h*
-                    (?:\#.*)?
-                    $\v?
-                )
-                |
-                (?<just_a_comma>,)
-                |
-                (?<comment>\#.*$)
-                |
-                (?<newline>$(?:\h*(?:\v|$))*)
+    attr = writeattributes(attr)
+
+    @mustcapture source "Expecting '<', '=', '/', or whitespace" r"""
+        (?<eatwhitespace>\<)?
+        (?:
+            (?<equalssign>\=)
+            |
+            (?<closingslash>/)?
+            (?:\h*)
+        )
+    """mx
+
+    code_for_inline_val = nothing
+    inlinevalloc = source.ix
+    if !isnothing(equalssign)
+        startix = source.ix
+        expr, head, newline = parse_expressionline(source)
+        if !isnothing(head)
+            error(source, startix, "Block not supported after =")
+        end
+        code_for_inline_val = @nolinenodes quote
+            @htmlesc string($(esc(expr)))
+        end
+    else
+        code_for_inline_val, newline = parse_contentline(source)
+    end
+
+    body = @nolinenodes quote end
+    blockloc = source.ix
+    parseresult = parse_indented_block!(body, curindent, source)
+    if isnothing(parseresult)
+        haveblock = false
+    else
+        if isnothing(eatwhitespace)
+            indentation, newline = parseresult
+            body = Expr(
+                :block,
+                Expr(:hamlindented, indentation,
+                    filterlinenodes(:(@nextline; $body))
+                ),
+                :(@nextline),
             )
-        """mx
-        if !isnothing(begin_of_string_literal)
-            # advance the location in s by the run length of the string.
-            # Julia takes care of escaping etc. We will eventually parse
-            # the whole thing again in the branch below.
-            parse_juliacode(s; greedy=false)
-        elseif !isnothing(comma_before_end_of_line) ||
-                !isnothing(just_a_comma) ||
-                !isnothing(comment)
-            continue
-        else
-            snippet = SubString(s.text, startix, s.ix - 1 - length(newline))
-            expr = parse_juliacode(s, snippet; kwds..., with_linenode=false)
-            if expr isa Expr && expr.head == :incomplete
-                expr = parse_juliacode(s, "$snippet\nend", snippet; kwds..., with_linenode=false)
-                head = expr.head
-            else
-                head = nothing
-            end
-            expr = with_linenode ? Expr(:block, loc, expr) : expr
-            return expr, head, newline
         end
+        haveblock = true
     end
-    return nothing, nothing, ""
+    if !isnothing(closingslash)
+        isnothing(code_for_inline_val) || error(source, inlinevalloc, "inline value not supported after /")
+        haveblock && error(source, blockloc, "block not supported after /")
+        extendblock!(code, @nolinenodes quote
+            @output $"<$tagname"
+            $attr
+            @output $" />"
+        end)
+    elseif haveblock
+        isnothing(code_for_inline_val) || error(source, blockloc, "block not supported after =")
+        extendblock!(code, @nolinenodes quote
+            @output $"<$tagname"
+            $attr
+            @output ">"
+            $body
+            @output $"</$tagname>"
+        end)
+    elseif !isnothing(code_for_inline_val)
+        extendblock!(code, @nolinenodes quote
+            @output $"<$tagname"
+            $attr
+            @output ">"
+            $code_for_inline_val
+            @output $"</$tagname>"
+        end)
+    else
+        extendblock!(code, @nolinenodes quote
+            @output $"<$tagname"
+            $attr
+            @output $"></$tagname>"
+        end)
+    end
+    return newline
 end
 
+indentdiff(a, b::Nothing) = a
+
+function indentdiff(a, b)
+    startswith(a, b) || error("Expecting uniform indentation")
+    return a[1+length(b):end]
+end
+
+function parse_indented_block!(code, curindent, source)
+    controlflow_this = nothing
+    controlflow_prev = nothing
+    firstindent = nothing
+    newline = ""
+    while true
+        controlflow_this, controlflow_prev = nothing, controlflow_this
+        if isempty(source) || indentlength(match(r"\A\h*", source).match) <= indentlength(curindent)
+            isnothing(firstindent) && return nothing
+            return indentdiff(firstindent, curindent), newline
+        end
+        if @capture source r"""
+            ^
+            (?<indent>\h*)                            # indentation
+            (?:
+              (?<elseblock>-\h*else\h*(\#.*)?$\v?)
+              |
+              (?=(?<sigil>%|\#|\.|-\#|-|=|\\|/|!!!))? # stanza type
+              (?:-\#|-|=|\\|/|!!!)?                   # consume these stanza types
+            )
+        """xm
+            if isnothing(firstindent)
+                firstindent = indent
+            elseif !isnothing(elseblock)
+                block = @nolinenodes quote end
+                push!(controlflow_prev.args, block)
+                parseresult = parse_indented_block!(block, indent, source)
+                if !isnothing(parseresult)
+                    _, newline = parseresult
+                end
+                continue
+            else
+                isnothing(curindent) || firstindent == indent || error(source, "Jagged indentation")
+                !isempty(newline) && extendblock!(code, :( @output $newline @indentation ))
+            end
+
+            if sigil in ("%", "#", ".")
+                newline = parse_tag_stanza!(code, indent, source)
+            elseif sigil == "-#"
+                @mustcapture source "Expecting a comment" r"\h*(?<rest_of_line>.*)$(?<newline>\v?)"m
+                while indentlength(match(r"\A\h*", source).match) > indentlength(indent)
+                    @mustcapture source "Expecting comment continuing" r".*$\v?"m
+                end
+                newline = ""
+            elseif sigil == "-"
+                startix = source.ix
+                loc = LineNumberNode(source)
+                expr, head, newline = parse_expressionline(source, with_linenode=false)
+                if head in (:for, :while)
+                    expr.args[1] = esc(expr.args[1])
+                    body_of_loop = expr.args[2] = @nolinenodes quote
+                        !first && @nextline
+                        first = false
+                    end
+                    parseresult = parse_indented_block!(body_of_loop, indent, source)
+                    if !isnothing(parseresult)
+                        _, newline = parseresult
+                    end
+                    push!(code.args, loc)
+                    extendblock!(code, @nolinenodes quote
+                        let first=true
+                            $expr
+                        end
+                    end)
+                    controlflow_this = expr
+                elseif head == :if
+                    expr.args[1] = esc(expr.args[1])
+                    push!(code.args, loc)
+                    extendblock!(code, expr)
+                    parseresult = parse_indented_block!(expr.args[2], indent, source)
+                    if !isnothing(parseresult)
+                        _, newline = parseresult
+                    end
+                    controlflow_this = expr
+                elseif head == :do
+                    expr.args[1] = esc(expr.args[1])
+                    expr.args[2].args[1] = esc(expr.args[2].args[1])
+                    body_of_fun = expr.args[2].args[2] = @nolinenodes quote
+                        !first && @nextline
+                        first = false
+                    end
+                    parseresult = parse_indented_block!(body_of_fun, indent, source)
+                    if !isnothing(parseresult)
+                        _, newline = parseresult
+                    end
+                    push!(code.args, loc)
+                    extendblock!(code, @nolinenodes quote
+                        let first=true
+                            $expr
+                        end
+                    end)
+                elseif head == :block
+                    push!(code.args, loc)
+                    parseresult = parse_indented_block!(expr, indent, source)
+                    extendblock!(code, expr)
+                    if !isnothing(parseresult)
+                        _, newline = parseresult
+                    end
+                elseif head == :let
+                    expr = escapelet(expr)
+                    push!(code.args, loc)
+                    extendblock!(code, expr)
+                    parseresult = parse_indented_block!(expr.args[2], indent, source)
+                    if !isnothing(parseresult)
+                        _, newline = parseresult
+                    end
+                # TODO: this works but the resulting function closes over `io`
+                # and it may be in module scope. We need to define proper semantics
+                # before exposing this.
+                #elseif head == :function
+                #    expr.args[1] = esc(expr.args[1])
+                #    push!(code.args, loc)
+                #    extendblock!(code, expr)
+                #    parseresult = parse_indented_block!(expr.args[2], indent, source)
+                #    if !isnothing(parseresult)
+                #        _, newline = parseresult
+                #    end
+                elseif head == :macro
+                    push!(code.args, loc)
+                    extendblock!(code, expr)
+                    body_of_fun = @nolinenodes quote
+                    end
+                    expr.args[2] = body_of_fun #Expr(:block, Expr(:quote, body_of_fun))
+                    parseresult = parse_indented_block!(body_of_fun, indent, source)
+                    if !isnothing(parseresult)
+                        _, newline = parseresult
+                        extendblock!(body_of_fun, @nolinenodes quote
+                            @output $newline
+                        end)
+                    end
+                    newline = ""
+                elseif isnothing(head)
+                    push!(code.args, loc)
+                    extendblock!(code, esc(expr))
+                    newline = ""
+                else
+                    error(source, startix, "Unexpected expression head: $head")
+                end
+            elseif sigil == "="
+                startix = source.ix
+                expr, head, newline = parse_expressionline(source)
+                if !isnothing(head)
+                    error(source, startix, "Block not supported after =")
+                end
+                extendblock!(code, @nolinenodes quote
+                    @htmlesc string($(esc(expr)))
+                end)
+            elseif sigil == "\\" || sigil == nothing
+                @mustcapture source "Expecting space" r"\h*"
+                linecode, newline = parse_contentline(source)
+                extendblock!(code, linecode)
+            elseif sigil == "/"
+                @mustcapture source "Expecting space" r"\h*"
+                linecode, newline = parse_contentline(source)
+                if !isnothing(linecode)
+                    extendblock!(code, @nolinenodes quote
+                        @output "<!-- "
+                        $linecode
+                        @output " -->"
+                    end)
+                else
+                    body = @nolinenodes quote end
+                    parseresult = parse_indented_block!(body, indent, source)
+                    if !isnothing(parseresult)
+                        indentation, newline = parseresult
+                        body = filterlinenodes(:( @indented $indentation (@nextline; $body) ))
+                        extendblock!(code, @nolinenodes quote
+                            @output $"<!--"
+                            $body
+                            @nextline $"-->"
+                        end)
+                    end
+                end
+            elseif sigil == "!!!"
+                @mustcapture source "Only support '!!! 5'" r"\h*5\h*$(?<newline>\v?)"m
+                extendblock!(code, @nolinenodes quote
+                    @output $"<!DOCTYPE html>"
+                end)
+            else
+                error(source, "(unreachable) Unrecognized sigil: $sigil")
+            end
+        else
+            error(source, "Unrecognized")
+        end
+    end
+end
+
+function Meta.parse(source::Source; kwds...)
+    code = @nolinenodes quote end
+    parseresult = parse_indented_block!(code, nothing, source)
+    if !isnothing(parseresult)
+        indentation, newline = parseresult
+        code = @nolinenodes quote
+            @output $indentation
+            $(code.args...)
+            @output $newline
+        end
+    end
+    return code
+end
 
 end # module

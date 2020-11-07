@@ -4,8 +4,9 @@ module HAML
 import Requires: @require
 
 include("Hygiene.jl")
-include("Parse.jl")
+include("SourceTools.jl")
 include("Attributes.jl")
+include("Parse.jl")
 include("Codegen.jl")
 include("Templates.jl")
 include("Helpers.jl")
@@ -15,7 +16,7 @@ function __init__()
 end
 
 import .Codegen: generate_haml_writer_codeblock, @haml_str, @io, @output, @htmlesc
-import .Parse: Source
+import .SourceTools: Source
 import .Templates: render, @include, includehaml
 import .Helpers: @surround, @precede, @succeed, @sourcefile, @cdatafile
 

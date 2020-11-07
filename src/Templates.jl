@@ -3,7 +3,7 @@ module Templates
 import HAML
 
 import ..Hygiene: make_hygienic, replace_expression_nodes_unescaped
-import ..Parse: Source
+import ..SourceTools: Source
 import ..Codegen: generate_haml_writer_codeblock, replace_output_nodes, @output, @io
 
 function tokwds(assignments...)

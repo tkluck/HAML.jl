@@ -15,7 +15,7 @@ macro errorat(rowcol, expr)
             err isa LoadError || rethrow(err)
             err
         end
-        loc = HAML.Parse.linecol(err)
+        loc = HAML.SourceTools.linecol(err)
         (loc[1], loc[2]) == $(esc(rowcol))
     end
 end
