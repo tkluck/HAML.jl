@@ -1,3 +1,27 @@
+"""
+   module HAML.Codegen
+
+Contains functions for turning a HAML/Julia expression tree into
+a pure Julia expression tree. This means it takes care of:
+
+ - Evaluate any macro definitions into the correct module to make them
+ available for the rest of tree
+
+ - Expand any macros in the correct module, taking care of hygiene: inside of
+ of `:escape` nodes the macros should be looked up in the user's module
+
+ - Expand lexically-scoped indentation to string literals
+
+ - Join any adjacent `:hamloutput` nodes and apply as many string
+ concatenations as possible at compile time
+
+ - Replace `:hamloutput` and `:hamlio` nodes by either a string concatenation
+ mechanism or a `write(io, ...)` operation
+
+All but the last operation are the responsibility of
+`generate_haml_writer_codeblock`; the last operation happens in
+`replace_output_nodes`.
+"""
 module Codegen
 
 import Markdown: htmlesc

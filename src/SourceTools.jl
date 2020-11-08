@@ -11,8 +11,8 @@ mutable struct Source
 end
 
 """
-    HAML.Source("/path/to/file.hamljl")
-    HAML.Source(::LineNumberNode, ::AbstractString)
+    HAML.SourceTools.Source("/path/to/file.hamljl")
+    HAML.SourceTools.Source(::LineNumberNode, ::AbstractString)
 
 Represent Julia-flavoured HAML source code that can be parsed using
 the `Meta.parse` function.

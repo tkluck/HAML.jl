@@ -1,3 +1,31 @@
+"""
+    module HAML.Parse
+
+Contains functions for turning HAML source code into an expression tree.
+The most important entrypoint is
+
+    Meta.parse(::HAML.SourceTools.Source, kwds...)
+
+The result of parsing is a normal Julia expression tree, except that the set of
+expression nodes is extended with the following nodes.
+
+    - `Expr(:hamloutput, args...)` - represents that each element of `args`
+    should be stringified and appended to the output string
+
+    - `Expr(:hamlindentation)` - represents a string value for the current
+    level of indentation: usually a certain number of tabs or spaces.
+
+    - `Expr(:hamlindented, indent, expr)` - represents that for the (lexical)
+    scope `expr`, the current level of indentation should be increased by
+    concatenating `indent`.
+
+    - `Expr(:hamlio)` - represents a value of type `IO` that can be used as an
+    argument for `Base.write`, resulting in appending to the output string.
+    (Usually, one should use `:hamloutput` instead.)
+
+Also note that any Julia code embedded in the HAML source will be wrapped in an
+`Expr(:escape, ...)` node.
+"""
 module Parse
 
 import DataStructures: OrderedDict

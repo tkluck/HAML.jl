@@ -1,3 +1,15 @@
+"""
+    module HAML.Attributes
+
+Contains functions for HAML-style flexible representation of attributes:
+`id` attributes through `#`, `class` attributes through `.`, and any
+attributes through a named tuple syntax.
+
+Whenever possible we expand the attributes at compile time but we fallback
+to dynamic expansion when necessary. This is why e.g. `mergeattributes`
+has a method that works with a literal key-value pair as well as one that
+works with an `Expr` argument.
+"""
 module Attributes
 
 import DataStructures: OrderedDict
