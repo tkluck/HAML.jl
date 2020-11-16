@@ -107,6 +107,13 @@ function merge_outputs(expr)
         else
             return Expr(:block, args...)
         end
+    elseif expr isa Expr && expr.head == :escape
+        arg = merge_outputs(expr.args[1])
+        if isoutput(arg)
+            return Expr(:hamloutput, map(esc, arg.args)...)
+        else
+            return Expr(:escape, arg)
+        end
     elseif expr isa Expr
         return mapexpr(merge_outputs, expr)
     else
