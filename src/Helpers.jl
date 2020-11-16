@@ -1,7 +1,5 @@
 module Helpers
 
-import Markdown: htmlesc
-
 macro io()
     Expr(:hamlio)
 end
@@ -27,11 +25,6 @@ end
 macro nextline(expr...)
     expr = map(esc, expr)
     Expr(:hamloutput, "\n", Expr(:hamlindentation), expr...)
-end
-
-macro htmlesc(expr...)
-    expr = map(esc, expr)
-    Expr(:hamloutput, :( $htmlesc($(expr...)) ))
 end
 
 function surround(f, before, after=before)

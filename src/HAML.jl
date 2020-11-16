@@ -20,9 +20,9 @@ import .Codegen: generate_haml_writer_codeblock, @haml_str
 import .SourceTools: Source
 import .Templates: render, @include, includehaml
 import .Helpers: @surround, @precede, @succeed, @sourcefile, @cdatafile
-import .Helpers: @io, @output, @htmlesc
+import .Helpers: @io, @output
 
-export @haml_str, render, @output, @io, @include, includehaml, @htmlesc
+export @haml_str, render, @output, @io, @include, includehaml
 export @surround, @precede, @succeed, @sourcefile, @cdatafile
 
 end # module

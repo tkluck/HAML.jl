@@ -24,8 +24,6 @@ All but the last operation are the responsibility of
 """
 module Codegen
 
-import Markdown: htmlesc
-
 import ..Hygiene: expand_macros_hygienic, replace_expression_nodes_unescaped, hasnode, mapexpr, isexpr
 import ..Hygiene: mapesc, make_hygienic
 import ..Parse: @nolinenodes
@@ -34,7 +32,7 @@ import ..SourceTools: Source
 module InternalNamespace
 
 import ...Escaping: encode, ElementContentContext
-import ...Helpers: @output, @htmlesc, @indent, @nextline, @indentation, @indented
+import ...Helpers: @output, @indent, @nextline, @indentation, @indented
 
 macro hygienic(expr)
     return expr
