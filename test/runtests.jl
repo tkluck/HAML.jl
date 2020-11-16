@@ -273,7 +273,7 @@ hamljl(name) = joinpath(@__DIR__, "hamljl", name)
         # the characters #"' in annoying places
         @expandsto """
         #
-        &#36;
+        \$
         &quot;
         &quot;
         """ haml"""
@@ -291,14 +291,17 @@ hamljl(name) = joinpath(@__DIR__, "hamljl", name)
             Let&#39;s get ready
             The motto is Let&#39;s get ready
             <p>Let&#39;s get ready</p>
+            <div></div>
             """ haml"""
             %span(motto=motto)
             %= motto
             = motto
             The motto is $motto
             %p $motto
+            $(LiteralHTML("<div></div>"))
             """
         end
+
     end
     @testset "Doctype" begin
         @expandsto """
@@ -403,7 +406,7 @@ hamljl(name) = joinpath(@__DIR__, "hamljl", name)
     @testset "Julia evaluation" begin
         @expandsto """
         <p>
-          hi there reader&#33;
+          hi there reader!
           yo
         </p>
         """ haml"""
@@ -412,7 +415,7 @@ hamljl(name) = joinpath(@__DIR__, "hamljl", name)
           = "yo"
         """
         @expandsto """
-        &lt;script&gt;alert&#40;&quot;I&#39;m evil&#33;&quot;&#41;;&lt;/script&gt;
+        &lt;script&gt;alert(&quot;I&#39;m evil!&quot;);&lt;/script&gt;
         """ haml"""
         = "<script>alert(\\"I'm evil!\\");</script>"
         """
@@ -422,7 +425,7 @@ hamljl(name) = joinpath(@__DIR__, "hamljl", name)
         %p= "hello"
         """
         @expandsto """
-        <p>hello there you&#33;</p>
+        <p>hello there you!</p>
         """ haml"""
         - foo = "hello"
         - foo *= " there"
@@ -605,7 +608,7 @@ hamljl(name) = joinpath(@__DIR__, "hamljl", name)
         <form>
           <p>Here's a little button:</p>
           <!-- button below -->
-          <button onclick='javascript:alert&#40;Thank you for clicking&#41;'>Click me</button>
+          <button onclick='javascript:alert(Thank you for clicking)'>Click me</button>
           <!-- button above -->
           <p>Did you see the little button?</p>
         </form>

@@ -17,6 +17,7 @@ function __init__()
 end
 
 import .Codegen: generate_haml_writer_codeblock, @haml_str
+import .Escaping: LiteralHTML
 import .SourceTools: Source
 import .Templates: render, @include, includehaml
 import .Helpers: @surround, @precede, @succeed, @sourcefile, @cdatafile
@@ -24,5 +25,6 @@ import .Helpers: @io, @output
 
 export @haml_str, render, @output, @io, @include, includehaml
 export @surround, @precede, @succeed, @sourcefile, @cdatafile
+export LiteralHTML
 
 end # module

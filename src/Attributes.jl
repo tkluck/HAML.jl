@@ -13,7 +13,8 @@ works with an `Expr` argument.
 module Attributes
 
 import DataStructures: OrderedDict
-import Markdown: htmlesc
+
+import ..Escaping: htmlesc
 
 function makeattr(name, val)
     ignore(x) = isnothing(x) || x === false
