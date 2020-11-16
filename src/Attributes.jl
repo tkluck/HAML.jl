@@ -14,28 +14,16 @@ module Attributes
 
 import DataStructures: OrderedDict
 
-import ..Escaping: htmlesc
+import ..Escaping: htmlesc, encode, AttributeNameContext, AttributeValueContext
 
 function makeattr(name, val)
-    ignore(x) = isnothing(x) || x === false
-    val = filter(!ignore, [val;])
-    isempty(val) && return (false, nothing, nothing)
-
-    if name == :class
-        value = join(val, " ")
-    elseif name == :id
-        value = join(val, "-")
+    namerepr = encode(AttributeNameContext(), name)
+    valuerepr = encode(AttributeValueContext(name), [val;]...)
+    if !isnothing(valuerepr)
+        return (true, namerepr, valuerepr)
     else
-        ix = findlast(!ignore, val)
-        value = val[ix]
+        return (false, nothing, nothing)
     end
-    if value === true
-        valuerepr = string(name)
-    else
-        valuerepr = string(value)
-    end
-    namerepr = replace(string(name), "_" => "-")
-    return (true, htmlesc(namerepr), htmlesc(valuerepr))
 end
 
 join_attr_name(x...) = Symbol(join(x, "-"))

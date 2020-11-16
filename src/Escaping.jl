@@ -31,11 +31,22 @@ struct ElementContentContext <: Context end
 encode(ctx::ElementContentContext, val) = htmlesc(val)
 
 struct AttributeNameContext <: Context end
-encode(ctx::AttributeNameContext, val) = htmlesc(val)
+encode(ctx::AttributeNameContext, val) = htmlesc(replace(string(val), "_" => "-"))
 
-struct AttributeValueContext <: Context end
+struct AttributeValueContext <: Context
+    attr :: Symbol
+end
+encode(ctx::AttributeValueContext) = nothing
 encode(ctx::AttributeValueContext, val) = htmlesc(val)
-
+encode(ctx::AttributeValueContext, val::Nothing) = nothing
+encode(ctx::AttributeValueContext, val::Bool) = val ? string(ctx.attr) : nothing
+encode(ctx::AttributeValueContext, vals...) = if ctx.attr == :class
+    join((encode(ctx, v) for v in vals), " ")
+elseif ctx.attr == :id
+    join((encode(ctx, v) for v in vals), "-")
+else
+    encode(ctx, last(val))
+end
 
 struct LiteralHTML{T <: AbstractString}
     html :: T
