@@ -122,7 +122,7 @@ function parse_tag_stanza!(code, curindent, source)
             error(source, startix, "Block not supported after =")
         end
         code_for_inline_val = @nolinenodes quote
-            @htmlesc string($(esc(expr)))
+            @output encode(ElementContentContext(), $(esc(expr)))
         end
     else
         code_for_inline_val, newline = parse_contentline(source)
@@ -333,7 +333,7 @@ function parse_indented_block!(code, curindent, source)
                     error(source, startix, "Block not supported after =")
                 end
                 extendblock!(code, @nolinenodes quote
-                    @htmlesc string($(esc(expr)))
+                    @output encode(ElementContentContext(), $(esc(expr)))
                 end)
             elseif sigil == "\\" || sigil == nothing
                 @mustcapture source "Expecting space" r"\h*"

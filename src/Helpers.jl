@@ -1,5 +1,39 @@
 module Helpers
 
+import Markdown: htmlesc
+
+macro io()
+    Expr(:hamlio)
+end
+
+macro indentation()
+    Expr(:hamlindentation)
+end
+
+
+macro indented(indentation, expr)
+    Expr(:hamlindented, esc(indentation), esc(expr))
+end
+
+macro output(expr...)
+    expr = map(esc, expr)
+    Expr(:hamloutput, expr...)
+end
+
+macro indent()
+    Expr(:hamloutput, Expr(:hamlindentation))
+end
+
+macro nextline(expr...)
+    expr = map(esc, expr)
+    Expr(:hamloutput, "\n", Expr(:hamlindentation), expr...)
+end
+
+macro htmlesc(expr...)
+    expr = map(esc, expr)
+    Expr(:hamloutput, :( $htmlesc($(expr...)) ))
+end
+
 function surround(f, before, after=before)
     before()
     f()

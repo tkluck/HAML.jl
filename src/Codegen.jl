@@ -26,13 +26,22 @@ module Codegen
 
 import Markdown: htmlesc
 
-import ..Hygiene: expand_macros_hygienic, replace_expression_nodes_unescaped, hasnode, mapexpr
-import ..Hygiene: mapesc
+import ..Hygiene: expand_macros_hygienic, replace_expression_nodes_unescaped, hasnode, mapexpr, isexpr
+import ..Hygiene: mapesc, make_hygienic
 import ..Parse: @nolinenodes
 import ..SourceTools: Source
 
-isexpr(head, val) = false
-isexpr(head, val::Expr) = val.head == head
+module InternalNamespace
+
+import ...Escaping: encode, ElementContentContext
+import ...Helpers: @output, @htmlesc, @indent, @nextline, @indentation, @indented
+
+macro hygienic(expr)
+    return expr
+end
+
+end # module InternalNamespace
+
 isstringexpr(val) = isexpr(:string, val)
 
 concatindent(a, b) = if isstringexpr(a) && isstringexpr(b)
@@ -124,10 +133,12 @@ function generate_haml_writer_codeblock(usermod, source, extraindent="")
             Expr(:$, a)
         end
         m.args[2] = Expr(:block, Expr(:quote, m.args[2]))
-        m = expand_macros_hygienic(@__MODULE__, usermod, m)
-        Base.eval(usermod, m)
+        macroname = Symbol("@", m.args[1].args[1])
+        m.args[1].args[1] = gensym(m.args[1].args[1])
+        macroinstance = Base.eval(InternalNamespace, m)
+        Base.eval(usermod, :( const $macroname = $macroinstance ))
     end
-    code = expand_macros_hygienic(@__MODULE__, usermod, code)
+    code = expand_macros_hygienic(InternalNamespace, usermod, code)
     code = Expr(:hamlindented, extraindent, code)
     code = materialize_indentation(code)
     code = merge_outputs(code)
@@ -176,49 +187,21 @@ macro haml_str(source)
         if length(code.args) == 1 && code.args[1] isa String
             return code.args[1]
         else
-            return Expr(:string, code.args...)
+            code = Expr(:string, code.args...)
+        end
+    else
+        code = replace_output_nodes(code, :io)
+        code = @nolinenodes quote
+            io = IOBuffer()
+            $code
+            String(take!(io))
         end
     end
 
-    code = replace_output_nodes(code, :io)
-
-    return @nolinenodes quote
-        io = IOBuffer()
-        $code
-        String(take!(io))
-    end
-end
-
-macro io()
-    Expr(:hamlio)
-end
-
-macro indentation()
-    Expr(:hamlindentation)
+    code = make_hygienic(InternalNamespace, code)
+    return esc(code)
 end
 
 
-macro indented(indentation, expr)
-    Expr(:hamlindented, esc(indentation), esc(expr))
-end
-
-macro output(expr...)
-    expr = map(esc, expr)
-    Expr(:hamloutput, expr...)
-end
-
-macro indent()
-    Expr(:hamloutput, Expr(:hamlindentation))
-end
-
-macro nextline(expr...)
-    expr = map(esc, expr)
-    Expr(:hamloutput, "\n", Expr(:hamlindentation), expr...)
-end
-
-macro htmlesc(expr...)
-    expr = map(esc, expr)
-    Expr(:hamloutput, :( $htmlesc($(expr...)) ))
-end
 
 end # module

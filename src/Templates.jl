@@ -4,7 +4,7 @@ import HAML
 
 import ..Hygiene: make_hygienic, replace_expression_nodes_unescaped
 import ..SourceTools: Source
-import ..Codegen: generate_haml_writer_codeblock, replace_output_nodes, @output, @io
+import ..Codegen: generate_haml_writer_codeblock, replace_output_nodes, InternalNamespace
 
 function tokwds(assignments...)
     kwds = map(assignments) do a
@@ -94,7 +94,7 @@ function _includehaml(mod::Module, fn::Symbol, path, indent="")
             String(take!(io))
         end
     end
-    code = make_hygienic(mod, code)
+    code = make_hygienic(InternalNamespace, code)
     Base.eval(mod, code)
 end
 
@@ -115,7 +115,8 @@ function render(io, path; variables=(), indent="")
 end
 
 module HamlOnFileSystem
-    import ...Templates: @output, @io, @include
+    import ...Helpers: @output, @io
+    import ...Templates: @include
 end
 
 

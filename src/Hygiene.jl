@@ -8,15 +8,13 @@ mapexpr(f, expr::Expr) = begin
     return res
 end
 
-macro hygienic(expr)
-    return expr
-end
+isexpr(head, val) = false
+isexpr(head, val::Expr) = val.head == head
 
-const at_hygienic = var"@hygienic"
-
-function make_hygienic(outermod, expr)
+function make_hygienic(outermod, expr, macro_instance=nothing)
     dummy_linenode = LineNumberNode(@__LINE__, Symbol(@__FILE__))
-    return macroexpand(outermod, Expr(:macrocall, at_hygienic, dummy_linenode, expr), recursive=false)
+    m = outermod.var"@hygienic"
+    return macroexpand(outermod, Expr(:macrocall, m, dummy_linenode, expr), recursive=false)
 end
 
 hasnode(head, expr) = false
@@ -62,7 +60,7 @@ function replace_expression_nodes_unescaped(f, head, expr)
 end
 
 function mapesc(f, expr)
-    if expr isa Expr && expr.head == :escape
+    if isexpr(:escape, expr)
         return mapexpr(f, expr)
     else
         return mapexpr(a -> mapesc(f, a), expr)
