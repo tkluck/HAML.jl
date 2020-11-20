@@ -158,6 +158,14 @@ hamljl(name) = joinpath(@__DIR__, "hamljl", name)
             %h1.class.otherclass#id La La La
         """
 
+        let kwds=(href="/index.html", style="text-color:blue")
+            @expandsto """
+            <a href='/index.html' style='text-color:blue'></a>
+            """ haml"""
+            %a(kwds...)
+            """
+        end
+
         @expandsto """
         <blockquote><div>
           Foo!
