@@ -23,6 +23,30 @@ end
 module Foo end
 hamljl(name) = joinpath(@__DIR__, "hamljl", name)
 
+module Bar
+    using HAML
+    # test scoping for macros: any globals should be
+    # looked up in the module where the macro is defined.
+    # See the "Macros" test set below.
+    foo(x) = string(x)
+    haml"""
+    - macro barmacro(x)
+      - value = foo(x)
+      %p= value
+      %p $(value)
+    """
+
+    const var"@my_output" = var"@output"
+
+    macro bazmacro(x)
+        y = x
+        quote
+            value = foo($y)
+            @my_output value "\n"
+        end
+    end
+end
+
 @testset "HAML" begin
     @testset "Plain Text" begin
         @expandsto """
@@ -815,6 +839,15 @@ hamljl(name) = joinpath(@__DIR__, "hamljl", name)
         <p>Hello from my first macro</p>
         """ haml"""
         - @my_first_macro
+        """
+
+        @expandsto """
+        <p>42</p>
+        <p>42</p>
+        42
+        """ haml"""
+        - @Bar.barmacro(42)
+        - @Bar.bazmacro(42)
         """
     end
 end

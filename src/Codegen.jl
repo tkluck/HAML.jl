@@ -137,11 +137,10 @@ function generate_haml_writer_codeblock(usermod, source, extraindent="")
         m.args[2] = mapesc(m.args[2]) do a
             Expr(:$, a)
         end
+        m.args[2] = macroexpand(InternalNamespace, m.args[2])
+        m.args[2] = make_hygienic(InternalNamespace, m.args[2])
         m.args[2] = Expr(:block, Expr(:quote, m.args[2]))
-        macroname = Symbol("@", m.args[1].args[1])
-        m.args[1].args[1] = gensym(m.args[1].args[1])
-        macroinstance = Base.eval(InternalNamespace, m)
-        Base.eval(usermod, :( const $macroname = $macroinstance ))
+        Base.eval(usermod, m)
     end
     code = expand_macros_hygienic(InternalNamespace, usermod, code)
     code = Expr(:hamlindented, extraindent, code)
