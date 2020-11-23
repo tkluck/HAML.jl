@@ -87,11 +87,10 @@ function _includehaml(mod::Module, fn::Symbol, path, indent="")
         $fn(io::IO, indent=""; variables...) = $fn(indent; variables...) do content...
             write(io, content...)
         end
-        $fn(indent=""; variables...) = let io = IOBuffer()
+        $fn(indent=""; variables...) = sprint() do io
             $fn(indent; variables...) do (content...)
                 write(io, content...)
             end
-            String(take!(io))
         end
     end
     code = make_hygienic(InternalNamespace, code)

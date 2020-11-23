@@ -195,11 +195,9 @@ macro haml_str(source)
         end
     else
         code = replace_output_nodes(code, :io)
-        code = @nolinenodes quote
-            io = IOBuffer()
+        code = :( sprint() do io
             $code
-            String(take!(io))
-        end
+        end )
     end
 
     code = make_hygienic(InternalNamespace, code)
