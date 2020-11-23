@@ -3,20 +3,37 @@ using HAML
 
 using DataStructures: OrderedDict
 
+"""
+    @expandsto "
+        <html output>
+    " haml"
+        <haml input>
+    "
+
+A helper macro that makes the tests just slightly more readable.
+"""
 macro expandsto(str1, str2)
     :( @test $(esc(str1)) == $(esc(str2)) )
 end
 
+"""
+        @test @errorat (i, j) haml"
+        - %a
+        "
+
+A helper macro that return true if there's a HAML syntax error at row i, column
+j.
+"""
 macro errorat(rowcol, expr)
     quote
-        err = try
+        try
             eval($(QuoteNode(expr)))
+            false
         catch err
             err isa LoadError || rethrow(err)
-            err
+            loc = HAML.SourceTools.linecol(err)
+            (loc[1], loc[2]) == $(esc(rowcol))
         end
-        loc = HAML.SourceTools.linecol(err)
-        (loc[1], loc[2]) == $(esc(rowcol))
     end
 end
 
