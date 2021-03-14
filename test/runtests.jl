@@ -790,10 +790,9 @@ end
         %a(3)
         """
 
-        # TODO
-        #@test @errorat (1, 12) haml"""
-        #%a(href=1, 3)
-        #"""
+        @test_broken @errorat (1, 12) haml"""
+        %a(href=1, 3)
+        """
 
         @test @errorat (1, 6) haml"""
         %br/ Syntax error: content after /
