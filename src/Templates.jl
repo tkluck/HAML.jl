@@ -72,6 +72,7 @@ includehaml(mod::Module, fns::Pair{Symbol}...) = foreach(fns) do (fn, path)
 end
 
 function _includehaml(mod::Module, fn::Symbol, path, indent="")
+    Base.include_dependency(path)
     s = Source(path)
     code = generate_haml_writer_codeblock(mod, s, Expr(:string, indent, :indent))
     code = replace_expression_nodes_unescaped(:hamloutput, code) do esc, content...
