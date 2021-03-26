@@ -166,7 +166,7 @@ function parse_contentline(s::Source)
         !isempty(literal) && push!(exprs, literal)
         if nextchar == "\$"
             expr = esc(parse_juliacode(s, greedy=false))
-            expr = :( encode(ElementContentContext(), $expr) )
+            expr = :( sprint(io -> print(ElementContentContext(io), $expr)) )
             push!(exprs, expr)
         end
         if nextchar != "\\" && nextchar != "\$"

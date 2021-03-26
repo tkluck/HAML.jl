@@ -14,11 +14,24 @@ module Attributes
 
 import DataStructures: OrderedDict
 
-import ..Escaping: htmlesc, encode, AttributeNameContext, AttributeValueContext
+import ..Escaping: htmlesc, AttributeNameContext
+
+
+encodeval(attr) = nothing
+encodeval(attr, val) = htmlesc(val)
+encodeval(attr, val::Nothing) = nothing
+encodeval(attr, val::Bool) = val ? string(attr) : nothing
+encodeval(attr, vals...) = if attr == :class
+    join((encodeval(attr, v) for v in vals), " ")
+elseif attr == :id
+    join((encodeval(attr, v) for v in vals), "-")
+else
+    encodeval(attr, last(val))
+end
 
 function makeattr(name, val)
-    namerepr = encode(AttributeNameContext(), name)
-    valuerepr = encode(AttributeValueContext(name), [val;]...)
+    namerepr = sprint(io -> print(AttributeNameContext(io), name))
+    valuerepr = encodeval(name, [val;]...)
     if !isnothing(valuerepr)
         return (true, namerepr, valuerepr)
     else

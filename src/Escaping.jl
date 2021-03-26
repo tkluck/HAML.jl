@@ -8,45 +8,47 @@ to be interpolated into different contexts.
 """
 module Escaping
 
-htmlesc(val) = sprint(val) do io, val
-    for c in string(val)
-        # from:
-        # https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html#rule-1-html-encode-before-inserting-untrusted-data-into-html-element-content
-        c == '&'  && (write(io, "&amp;"); continue)
-        c == '<'  && (write(io, "&lt;"); continue)
-        c == '>'  && (write(io, "&gt;"); continue)
-        c == '"'  && (write(io, "&quot;"); continue)
-        c == '\'' && (write(io, "&#39;"); continue)
-        #c == '/'  && (write(io, "&#47;"); continue)
-        write(io, c)
+function htmlesc(io::IO, vals...)
+    for val in vals
+        for c in string(val)
+            # from:
+            # https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html#rule-1-html-encode-before-inserting-untrusted-data-into-html-element-content
+            c == '&'  && (write(io, "&amp;"); continue)
+            c == '<'  && (write(io, "&lt;"); continue)
+            c == '>'  && (write(io, "&gt;"); continue)
+            c == '"'  && (write(io, "&quot;"); continue)
+            c == '\'' && (write(io, "&#39;"); continue)
+            #c == '/'  && (write(io, "&#47;"); continue)
+            write(io, c)
+        end
     end
 end
 
+htmlesc(vals...) = sprint(io -> htmlesc(io, vals...))
+
 abstract type Context end
 
-encode(ctx::Context, val) = error()
-encode(ctx::Context, val, vals...) = encode(ctx, val) * encode(ctx, vals...)
+Base.print(ctx::Context, val) = error("Not implemented: print $(typeof(val)) to $(typeof(ctx))")
 
-struct ElementContentContext <: Context end
-encode(ctx::ElementContentContext, val) = htmlesc(val)
-
-struct AttributeNameContext <: Context end
-encode(ctx::AttributeNameContext, val) = htmlesc(replace(string(val), "_" => "-"))
-
-struct AttributeValueContext <: Context
-    attr :: Symbol
+function Base.join(ctx::Context, strings, delim="")
+    first = true
+    for str in strings
+        first ? (first = false) : print(ctx, delim)
+        print(ctx, str)
+    end
 end
-encode(ctx::AttributeValueContext) = nothing
-encode(ctx::AttributeValueContext, val) = htmlesc(val)
-encode(ctx::AttributeValueContext, val::Nothing) = nothing
-encode(ctx::AttributeValueContext, val::Bool) = val ? string(ctx.attr) : nothing
-encode(ctx::AttributeValueContext, vals...) = if ctx.attr == :class
-    join((encode(ctx, v) for v in vals), " ")
-elseif ctx.attr == :id
-    join((encode(ctx, v) for v in vals), "-")
-else
-    encode(ctx, last(val))
+
+struct ElementContentContext{T} <: Context
+    io :: T
 end
+
+Base.print(ctx::ElementContentContext, val) = htmlesc(ctx.io, val)
+
+struct AttributeNameContext{T} <: Context
+    io :: T
+end
+
+Base.print(ctx::AttributeNameContext, val) = htmlesc(ctx.io, replace(string(val), "_" => "-"))
 
 struct LiteralHTML{T <: AbstractString}
     html :: T
@@ -54,6 +56,6 @@ end
 
 LiteralHTML(f::Function) = LiteralHTML(sprint(f))
 
-encode(::ElementContentContext, val::LiteralHTML) = val.html
+Base.print(ctx::ElementContentContext, val::LiteralHTML) = print(ctx.io, val.html)
 
 end # module

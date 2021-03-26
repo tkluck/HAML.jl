@@ -31,7 +31,7 @@ import ..SourceTools: Source
 
 module InternalNamespace
 
-import ...Escaping: encode, ElementContentContext, LiteralHTML
+import ...Escaping: ElementContentContext, LiteralHTML
 import ...Helpers: @output, @indent, @nextline, @indentation, @indented
 
 macro hygienic(expr)
@@ -205,7 +205,5 @@ macro haml_str(source)
     code = make_hygienic(InternalNamespace, code)
     return esc(code)
 end
-
-
 
 end # module
