@@ -52,6 +52,8 @@ struct LiteralHTML{T <: AbstractString}
     html :: T
 end
 
+LiteralHTML(f::Function) = LiteralHTML(sprint(f))
+
 encode(::ElementContentContext, val::LiteralHTML) = val.html
 
 end # module

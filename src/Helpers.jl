@@ -1,5 +1,7 @@
 module Helpers
 
+import ..Escaping: LiteralHTML
+
 macro io()
     Expr(:hamlio)
 end
@@ -116,6 +118,32 @@ macro cdatafile(relpath)
     push!(code.args, Expr(:hamloutput, "\n", Expr(:hamlindentation), "]]>"))
 
     code
+end
+
+function nestedindent(html::LiteralHTML, indent)
+    LiteralHTML() do io
+        text = html.html
+        ix = 1
+        while true
+            m = match(r"\v+"m, text, ix)
+            if isnothing(m)
+                write(io, @view text[ix:end])
+                break
+            end
+            write(io, @view(text[ix:m.offset-1]), m.match, indent)
+            ix = m.offset + length(m.match)
+        end
+    end
+end
+
+"""
+    = @nestedindent value
+
+Output value into the rendered HAML string, with every new line indented
+at the current indentation level.
+"""
+macro nestedindent(expr)
+    return :($nestedindent($(esc(expr)), @indentation))
 end
 
 end

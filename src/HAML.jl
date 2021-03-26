@@ -21,10 +21,10 @@ import .Escaping: LiteralHTML
 import .SourceTools: Source
 import .Templates: render, @include, includehaml
 import .Helpers: @surround, @precede, @succeed, @sourcefile, @cdatafile
-import .Helpers: @io, @output
+import .Helpers: @io, @output, @nestedindent
 
 export @haml_str, render, @output, @io, @include, includehaml
-export @surround, @precede, @succeed, @sourcefile, @cdatafile
+export @surround, @precede, @succeed, @sourcefile, @cdatafile, @nestedindent
 export LiteralHTML
 
 end # module

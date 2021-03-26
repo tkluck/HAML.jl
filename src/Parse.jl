@@ -31,7 +31,7 @@ module Parse
 import DataStructures: OrderedDict
 
 import ..Attributes: mergeattributes, writeattributes
-import ..Hygiene: mapexpr, escapelet
+import ..Hygiene: mapexpr, escapelet, isexpr
 import ..SourceTools: @capture, @mustcapture, Source, parse_juliacode, parse_contentline, parse_expressionline
 
 function filterlinenodes(expr)
@@ -188,6 +188,8 @@ function indentdiff(a, b)
     return a[1+length(b):end]
 end
 
+function HELPER end
+
 function parse_indented_block!(code, curindent, source)
     controlflow_this = nothing
     controlflow_prev = nothing
@@ -294,17 +296,26 @@ function parse_indented_block!(code, curindent, source)
                     if !isnothing(parseresult)
                         _, newline = parseresult
                     end
-                # TODO: this works but the resulting function closes over `io`
-                # and it may be in module scope. We need to define proper semantics
-                # before exposing this.
-                #elseif head == :function
-                #    expr.args[1] = esc(expr.args[1])
-                #    push!(code.args, loc)
-                #    extendblock!(code, expr)
-                #    parseresult = parse_indented_block!(expr.args[2], indent, source)
-                #    if !isnothing(parseresult)
-                #        _, newline = parseresult
-                #    end
+                elseif head == :function
+                    push!(code.args, loc)
+                    body_of_fun = @nolinenodes quote
+                    end
+                    parse_indented_block!(body_of_fun, indent, source)
+                    name_of_fun = esc(expr.args[1].args[1])
+                    argspec = esc.(expr.args[1].args[2:end])
+                    argnames = map(expr.args[1].args[2:end]) do arg
+                        isexpr(:(::), arg) && return esc(arg.args[1])
+                        arg isa Symbol && return esc(arg)
+                        error("Can't understand argument: $arg")
+                    end
+                    extendblock!(code, @nolinenodes quote
+                        # TODO: support kwargs
+                        $name_of_fun($(argspec...)) = begin
+                            LiteralHTML(io -> HELPER(io, $name_of_fun, $(argnames...)))
+                        end
+                        HELPER(io::IO, ::typeof($name_of_fun), $(argspec...)) = $body_of_fun
+                    end)
+                    newline = ""
                 elseif head == :macro
                     push!(code.args, loc)
                     extendblock!(code, expr)

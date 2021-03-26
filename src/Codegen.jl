@@ -31,7 +31,7 @@ import ..SourceTools: Source
 
 module InternalNamespace
 
-import ...Escaping: encode, ElementContentContext
+import ...Escaping: encode, ElementContentContext, LiteralHTML
 import ...Helpers: @output, @indent, @nextline, @indentation, @indented
 
 macro hygienic(expr)

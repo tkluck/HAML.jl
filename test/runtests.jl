@@ -623,6 +623,19 @@ end
           %p= greeting
         """
 
+        haml"""
+        - function paragraph(text)
+          %p= text
+        """
+
+        @expandsto """
+        <p>hello</p>
+        <p>world</p>
+        """ haml"""
+        = paragraph("hello")
+        = paragraph("world")
+        """
+
         @expandsto """
         <p>hello</p>
         <p>world</p>
@@ -843,6 +856,46 @@ end
         - @paragraph("hello")
         - @paragraph("world")
         """).head == :string
+    end
+
+    @testset "Nonlinear control flow and indentation" begin
+        a = [
+            :x => [
+                :y => [
+                    :z => 3,
+                ],
+            ],
+            :w => 4,
+        ]
+        haml"""
+        - function f(x::Vector)
+          %dl
+            - for x_i in x
+              = @nestedindent f(x_i)
+        - function f(x::Pair)
+          %dt= x.first
+          %dd<
+            = @nestedindent f(x.second)
+        - function f(x::Number)
+          = x
+        """
+
+        @expandsto """
+        <dl>
+          <dt>x</dt>
+          <dd><dl>
+            <dt>y</dt>
+            <dd><dl>
+              <dt>z</dt>
+              <dd>3</dd>
+            </dl></dd>
+          </dl></dd>
+          <dt>w</dt>
+          <dd>4</dd>
+        </dl>
+        """ haml"""
+        = @nestedindent f(a)
+        """
     end
 
     @testset "Macros" begin
