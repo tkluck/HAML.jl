@@ -59,9 +59,9 @@ function materialize_indentation(expr, cur="")
     end
     if !hasnode(:hamlindented, expr) && !hasnode(:hamlindentation, expr)
         return expr
-    elseif expr isa Expr && expr.head == :hamlindented
+    elseif isexpr(:hamlindented, expr)
         return materialize_indentation(expr.args[2], concatindent(cur, expr.args[1]))
-    elseif expr isa Expr && expr.head == :hamlindentation
+    elseif isexpr(:hamlindentation, expr)
         return cur
     elseif expr isa Expr
         return mapexpr(a -> materialize_indentation(a, cur), expr)
