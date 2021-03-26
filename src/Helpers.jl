@@ -127,10 +127,10 @@ function nestedindent(html::LiteralHTML, indent)
         while true
             m = match(r"\v+"m, text, ix)
             if isnothing(m)
-                write(io, @view text[ix:end])
+                write(io, SubString(text, ix))
                 break
             end
-            write(io, @view(text[ix:m.offset-1]), m.match, indent)
+            write(io, SubString(text, ix, m.offset-1), m.match, indent)
             ix = m.offset + length(m.match)
         end
     end
