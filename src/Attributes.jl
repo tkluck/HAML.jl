@@ -6,117 +6,160 @@ Contains functions for HAML-style flexible representation of attributes:
 attributes through a named tuple syntax.
 
 Whenever possible we expand the attributes at compile time but we fallback
-to dynamic expansion when necessary. This is why e.g. `mergeattributes`
-has a method that works with a literal key-value pair as well as one that
-works with an `Expr` argument.
+to dynamic expansion when necessary.
 """
 module Attributes
 
 import DataStructures: OrderedDict
 
-import ..Escaping: htmlesc, AttributeNameContext
+import ..Escaping: htmlesc
+import ..Hygiene: isexpr
 
+AttributeVals() = NamedTuple()
 
-encodeval(attr) = nothing
-encodeval(attr, val) = htmlesc(val)
-encodeval(attr, val::Nothing) = nothing
-encodeval(attr, val::Bool) = val ? string(attr) : nothing
-encodeval(attr, vals...) = if attr == :class
-    join((encodeval(attr, v) for v in vals), " ")
-elseif attr == :id
-    join((encodeval(attr, v) for v in vals), "-")
-else
-    encodeval(attr, last(vals))
-end
+mergeattributes(attrs, (k, v)::Pair) = :( $a($attrs, ($k = $(esc(v)),)) )
+mergeattributes(attrs, expr) = :( $a($attrs, $pairs($(esc(expr)))...) )
 
-function makeattr(name, val)
-    namerepr = sprint(io -> print(AttributeNameContext(io), name))
-    valuerepr = encodeval(name, [val;]...)
-    if !isnothing(valuerepr)
-        return (true, namerepr, valuerepr)
+@generated function a(attrs::NamedTuple, x::NamedTuple)
+    @assert length(fieldnames(x)) == 1
+    name, = fieldnames(x)
+
+    curval = name in fieldnames(attrs) ? :( attrs.$name ) : nothing
+
+    if name == :class
+        return :( Base.merge(attrs, ($name = mergeclass($curval, x.$name),)) )
+    elseif name == :id
+        return :( Base.merge(attrs, ($name = mergeid($curval, x.$name),)) )
     else
-        return (false, nothing, nothing)
+        return :( Base.merge(attrs, ($name = mergeval($curval, x.$name),)) )
     end
 end
 
-join_attr_name(x...) = Symbol(join(x, "-"))
-recurse_attributes(x, path...) = (join_attr_name(path...) => x,)
-recurse_attributes(x::Pair, path...) = recurse_attributes(x[2], path..., x[1])
-recurse_attributes(x::Union{NamedTuple,AbstractDict}, path...) = (attr for pair in pairs(x) for attr in recurse_attributes(pair, path...))
-recurse_attributes(x::AbstractVector, path...) = (attr for pair in x for attr in recurse_attributes(pair, path...))
-
-function attributes_to_string(attributes)
-    collected_attributes = OrderedDict()
-    for (name, value) in recurse_attributes(attributes)
-        a = get!(Vector, collected_attributes, name)
-        append!(a, [value;])
-    end
-    join(
-        " $name='$value'"
-        for (name, value) in pairs(collected_attributes)
-        for (valid, name, value) in (makeattr(name, value),)
-        if valid
-    )
-end
-
-function mergeattributes(attr, keyvalue)
-    return :( $mergeattributes($attr, $keyvalue) )
-end
-
-function mergeattributes(attr, kv, kvs...)
-    return mergeattributes(mergeattributes(attr, kv), kvs...)
-end
-
-function mergeattributes(attr, keyvalue::Expr)
-    if keyvalue.head == :(=)
-        k, v = keyvalue.args[1:2]
-        @assert k isa Symbol
-        if v isa String
-            return mergeattributes(attr, k => v)
+function a(attrs::NamedTuple, xs::Pair...)
+    for (name, val) in xs
+        curval = name in fieldnames(typeof(attrs)) ? getproperty(attrs, name) : nothing
+        if name == :class
+            attrs = Base.setindex(attrs, mergeclass(curval, val), name)
+        elseif name == :id
+            attrs = Base.setindex(attrs, mergeid(curval, val), name)
         else
-            k = QuoteNode(k)
-            v = esc(v)
-            return :( $mergeattributes($attr, $k => $v) )
+            attrs = Base.setindex(attrs, mergeval(curval, val), name)
         end
-    elseif keyvalue.head == :call && keyvalue.args[1] == :(=>)
-        k, v = keyvalue.args[2:3]
-        k = esc(k)
-        v = esc(v)
-        return :( $mergeattributes($attr, $k => $v) )
-    elseif keyvalue.head == :...
-        kvs = esc(keyvalue.args[1])
-        return :( $mergeattributes($attr, $pairs($kvs)...) )
+    end
+    attrs
+end
+
+const NestedType = Union{NamedTuple, AbstractDict}
+const MultipleType = Union{AbstractVector, AbstractSet}
+
+joinpath(path...) = join(path, "-")
+
+ignore(::Nothing) = true
+ignore(x::Bool) = !x
+ignore(x) = false
+
+joinid(::Nothing, val) = string(val)
+
+function joinid(vals...)
+    v = filter(!ignore, vals)
+    return isempty(v) ? nothing : join(v, "-")
+end
+
+function joinclass(vals...)
+    v = filter(!ignore, vals)
+    return isempty(v) ? nothing : join(v, " ")
+end
+
+leaf(::Nothing) = nothing
+leaf(x) = x.leaf
+children(::Nothing) = NamedTuple()
+children(x) = x.children
+
+function merge(x::NamedTuple, y::NestedType)
+    for (name, val) in pairs(y)
+        curval = name in fieldnames(typeof(x)) ? getproperty(x, name) : nothing
+        x = Base.setindex(x, mergeval(curval, val), name)
+    end
+    x
+end
+
+mergeid(curval, val::Nothing) = curval
+mergeid(curval, val::NestedType) = (leaf=leaf(curval), children=merge(children(curval), val))
+mergeid(curval, val::MultipleType) = (leaf=joinid(leaf(curval), val...), children=children(curval))
+mergeid(curval, val) = (leaf=joinid(leaf(curval), val), children=children(curval))
+
+mergeclass(curval, val::Nothing) = curval
+mergeclass(curval, val::NestedType) = (leaf=leaf(curval), children=merge(children(curval), val))
+mergeclass(curval, val::MultipleType) = (leaf=joinclass(leaf(curval), val...), children=children(curval))
+mergeclass(curval, val) = (leaf=joinclass(leaf(curval), val), children=children(curval))
+
+mergeval(curval, val::Nothing) = curval
+mergeval(curval, val::NestedType) = (leaf=leaf(curval), children=merge(children(curval), val))
+mergeval(curval, val::MultipleType) = (leaf=last(val), children=children(curval))
+mergeval(curval, val) = (leaf=val, children=children(curval))
+
+isconstant(::Union{AbstractString, Number, Tuple, NamedTuple}) = true
+isconstant(x) = false
+
+function foldconstants(expr)
+    if isexpr(:call, expr) && expr.args[1] == a
+        args = map(foldconstants, expr.args[2:end])
+        if all(isconstant, args)
+            return a(args...)
+        end
+    elseif isexpr(:escape, expr)
+        arg = foldconstants(expr.args[1])
+        if isconstant(arg)
+           return arg
+        end
+    elseif isexpr(:tuple, expr) && length(expr.args) == 1
+        arg = expr.args[1]
+        if isexpr(:(=), arg) && arg.args[1] isa Symbol
+            x = foldconstants(arg.args[2])
+            if isconstant(x)
+                return NamedTuple{(arg.args[1],)}((x,))
+            end
+        end
+    end
+
+    return expr
+end
+
+function writeattributes(attrs)
+    attrs = foldconstants(attrs)
+
+    if attrs isa NamedTuple
+        s = sprint(io -> attributes_to_string(io, attrs))
+        return :( @output $s )
     else
-        error()
+        return :( $attributes_to_string(@io, $attrs) )
     end
 end
 
-function mergeattributes(attr::AbstractDict, (key, val)::Pair{Symbol})
-    res = copy(attr)
-
-    ignore(x) = isnothing(x) || x === false
-    val = filter(!ignore, [val;])
-    isempty(val) && return
-
-    key = replace(string(key), "_" => "-")
-
-    if key == "class" || key == "id"
-        a = get!(Vector, res, key)
-        append!(a, val)
-    else
-        res[key] = val[end]
+@generated function attributes_to_string(io::IO, attrs::NamedTuple, prefix::Val{Prefix}=Val(Symbol(""))) where Prefix
+    code = quote
     end
 
-    return res
-end
+    for k in fieldnames(attrs)
+        kk = htmlesc(replace("$Prefix$k", '_' => '-'))
+        nested_prefix = Val(Symbol("$kk-"))
+        push!(code.args, quote
+            if !isnothing(attrs.$k.leaf) && attrs.$k.leaf !== false
+                print(io, ' ', $kk, "='")
+                if attrs.$k.leaf == true
+                    htmlesc(io, $kk)
+                else
+                    htmlesc(io, attrs.$k.leaf)
+                end
+                print(io, "'")
+            end
+            if !isnothing(attrs.$k.children)
+                attributes_to_string(io, attrs.$k.children, $nested_prefix)
+            end
+        end)
+    end
 
-function writeattributes(attr)
-    return :( @output $attributes_to_string($attr) )
-end
-
-function writeattributes(attr::AbstractDict)
-    attrstr = attributes_to_string(attr)
-    return :( @output $attrstr )
+    code
 end
 
 end # module

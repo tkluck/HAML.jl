@@ -28,9 +28,7 @@ Also note that any Julia code embedded in the HAML source will be wrapped in an
 """
 module Parse
 
-import DataStructures: OrderedDict
-
-import ..Attributes: mergeattributes, writeattributes
+import ..Attributes: AttributeVals, mergeattributes, writeattributes
 import ..Hygiene: mapexpr, escapelet, isexpr
 import ..SourceTools: @capture, @mustcapture, Source, parse_juliacode, parse_contentline, parse_expressionline
 
@@ -71,7 +69,7 @@ function parse_tag_stanza!(code, curindent, source)
     @mustcapture source "Expecting a tag name" r"(?:%(?<tagname>[A-Za-z0-9]+)?)?"
     tagname = something(tagname, "div")
 
-    attr = OrderedDict()
+    attrs = AttributeVals()
     while @capture source r"""
         (?=(?<openbracket>\())
         |
@@ -90,19 +88,29 @@ function parse_tag_stanza!(code, curindent, source)
                 attr_expr = :( ($attr_expr,) )
             end
             attr_expr.head == :tuple || error(source, loc, "Expecting key=value expression")
-            attr = mergeattributes(attr, attr_expr.args...)
+            for a in attr_expr.args
+                if isexpr(:(=), a)
+                    attrs = mergeattributes(attrs, a.args[1] => a.args[2])
+                elseif isexpr(:(...), a)
+                    attrs = mergeattributes(attrs, :( (;$a) ))
+                elseif isexpr(:call, a) && a.args[1] == :(=>)
+                    attrs = mergeattributes(attrs, :( (;$a) ))
+                else
+                    error(source, loc, "Expecting key=value expression")
+                end
+            end
         else
             if sigil == "."
-                attr = mergeattributes(attr, :class => value)
+                attrs = mergeattributes(attrs, :class => value)
             elseif sigil == "#"
-                attr = mergeattributes(attr, :id    => value)
+                attrs = mergeattributes(attrs, :id    => value)
             else
                 error(source, "(unreachable) Unknown sigil: $sigil")
             end
         end
     end
 
-    attr = writeattributes(attr)
+    attrs = writeattributes(attrs)
 
     @mustcapture source "Expecting '<', '=', '/', or whitespace" r"""
         (?<eatwhitespace>\<)?
@@ -152,14 +160,14 @@ function parse_tag_stanza!(code, curindent, source)
         haveblock && error(source, blockloc, "block not supported after /")
         extendblock!(code, @nolinenodes quote
             @output $"<$tagname"
-            $attr
+            $attrs
             @output $" />"
         end)
     elseif haveblock
         isnothing(code_for_inline_val) || error(source, blockloc, "block not supported after =")
         extendblock!(code, @nolinenodes quote
             @output $"<$tagname"
-            $attr
+            $attrs
             @output ">"
             $body
             @output $"</$tagname>"
@@ -167,7 +175,7 @@ function parse_tag_stanza!(code, curindent, source)
     elseif !isnothing(code_for_inline_val)
         extendblock!(code, @nolinenodes quote
             @output $"<$tagname"
-            $attr
+            $attrs
             @output ">"
             $code_for_inline_val
             @output $"</$tagname>"
@@ -175,7 +183,7 @@ function parse_tag_stanza!(code, curindent, source)
     else
         extendblock!(code, @nolinenodes quote
             @output $"<$tagname"
-            $attr
+            $attrs
             @output $"></$tagname>"
         end)
     end

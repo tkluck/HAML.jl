@@ -235,6 +235,12 @@ end
         %span(var"data-a"=(b=2,), data=(var"a-b"=3,))
         """
 
+        @expandsto """
+        <span data-a-b='3' data-a-c='3'></span>
+        """ haml"""
+        %span(var"data-a"=(b=2,c=3), var"data-a"=(b=3,))
+        """
+
     end
     @testset "Whitespace" begin
         @expandsto "" haml""
@@ -852,7 +858,7 @@ end
         %a(href="./index.html")
         """) isa String
 
-        @test @macroexpand(haml"""
+        @test_broken @macroexpand(haml"""
         !!! 5
         %html
           %head
