@@ -222,6 +222,19 @@ end
         """ haml"""
         .foo-bar
         """
+
+        @expandsto """
+        <span a='2'></span>
+        """ haml"""
+        %span(a=1, a=2)
+        """
+
+        @expandsto """
+        <span data-a-b='2' data-a-b='3'></span>
+        """ haml"""
+        %span(var"data-a"=(b=2,), data=(var"a-b"=3,))
+        """
+
     end
     @testset "Whitespace" begin
         @expandsto "" haml""

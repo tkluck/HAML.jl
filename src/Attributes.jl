@@ -26,7 +26,7 @@ encodeval(attr, vals...) = if attr == :class
 elseif attr == :id
     join((encodeval(attr, v) for v in vals), "-")
 else
-    encodeval(attr, last(val))
+    encodeval(attr, last(vals))
 end
 
 function makeattr(name, val)
