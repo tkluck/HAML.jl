@@ -37,6 +37,7 @@ import ..SourceTools: @capture, @mustcapture, Source, parse_juliacode, parse_con
 function filterlinenodes(expr)
     if expr isa Expr && expr.head == :block
         args = filter(e -> !(e isa LineNumberNode), expr.args)
+        args = map(a -> mapexpr(filterlinenodes, a), args)
         return Expr(expr.head, args...)
     elseif expr isa Expr && expr.head == :$
         return expr

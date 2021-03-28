@@ -5,6 +5,7 @@ import HAML
 import ..Hygiene: make_hygienic, replace_expression_nodes_unescaped
 import ..SourceTools: Source
 import ..Codegen: generate_haml_writer_codeblock, replace_output_nodes, InternalNamespace
+import ..Parse: @nolinenodes
 
 function tokwds(assignments...)
     kwds = map(assignments) do a
@@ -83,7 +84,7 @@ function _includehaml(mod::Module, fn::Symbol, path, indent="")
         :( variables.data.$sym )
     end
     fn = esc(fn)
-    code = quote
+    code = @nolinenodes quote
         $fn(f::Function, indent=""; variables...) = $code
         $fn(io::IO, indent=""; variables...) = $fn(indent; variables...) do content...
             write(io, content...)
@@ -94,6 +95,7 @@ function _includehaml(mod::Module, fn::Symbol, path, indent="")
             end
         end
     end
+    pushfirst!(code.args, s.__source__)
     code = make_hygienic(InternalNamespace, code)
     Base.eval(mod, code)
 end
