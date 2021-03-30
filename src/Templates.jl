@@ -46,9 +46,7 @@ macro include(relpath, args...)
         includehaml(__module__, sym, path)
     end
 
-    res = :( $(esc(sym))($args, $(Expr(:hamlindentation))) do content...
-        $(Expr(:hamloutput, :(content...)))
-    end)
+    res = :( $(esc(sym))($args, $(Expr(:hamlio)), $(Expr(:hamlindentation))) )
     return res
 end
 
@@ -72,28 +70,30 @@ includehaml(mod::Module, fns::Pair{Symbol}...) = foreach(fns) do (fn, path)
     includehaml(mod, fn, path)
 end
 
+struct IOClosure{F} <: IO
+    f :: F
+end
+
+Base.write(io::IOClosure, args...) = io.f(args...)
+Base.write(io::IOClosure, arg::Union{SubString{String}, String}) = io.f(arg)
+
 function _includehaml(mod::Module, fn::Symbol, path, indent="")
     Base.include_dependency(path)
     s = Source(path)
     code = generate_haml_writer_codeblock(mod, s, Expr(:string, indent, :indent))
-    code = replace_expression_nodes_unescaped(:hamloutput, code) do esc, content...
-        :( f($(map(esc, content)...)) )
-    end
+    #code = replace_expression_nodes_unescaped(:hamloutput, code) do esc, content...
+    #    :( f($(map(esc, content)...)) )
+    #end
+    code = replace_output_nodes(code, :io)
     code = replace_expression_nodes_unescaped(:$, code) do esc, sym
         sym isa Symbol || error("Can only use variables as interpolations")
         :( variables.data.$sym )
     end
     fn = esc(fn)
     code = @nolinenodes quote
-        $fn(f::Function, indent=""; variables...) = $code
-        $fn(io::IO, indent=""; variables...) = $fn(indent; variables...) do content...
-            write(io, content...)
-        end
-        $fn(indent=""; variables...) = sprint() do io
-            $fn(indent; variables...) do (content...)
-                write(io, content...)
-            end
-        end
+        $fn(io::IO, indent=""; variables...) = $code
+        $fn(f::Function, indent=""; variables...) = $fn($IOClosure(f), indent; variables...)
+        $fn(indent=""; variables...) = sprint(io -> $fn(io, indent; variables...))
     end
     pushfirst!(code.args, s.__source__)
     code = make_hygienic(InternalNamespace, code)

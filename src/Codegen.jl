@@ -32,7 +32,7 @@ import ..SourceTools: Source
 module InternalNamespace
 
 import ...Escaping: ElementContentContext, LiteralHTML
-import ...Helpers: @output, @indent, @nextline, @indentation, @indented
+import ...Helpers: @output, @indent, @nextline, @indentation, @indented, @io
 
 macro hygienic(expr)
     return expr
@@ -151,13 +151,7 @@ end
 
 function replace_output_nodes(code, io)
     code = replace_expression_nodes_unescaped(:hamloutput, code) do esc, args...
-        write_statements = map(args) do a
-            # each in its own statement; no need to put everything on the
-            # stack before starting sending stuff out on the io. (By this
-            # time, static strings have already been concatenated.)
-            :( write($io, $(esc(a))) )
-        end
-        Expr(:block, write_statements...)
+        :( write($io, $(esc.(args)...)) )
     end
     code = replace_expression_nodes_unescaped(:hamlio, code) do esc
         io
