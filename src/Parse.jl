@@ -217,6 +217,8 @@ function parse_indented_block!(code, curindent, source)
             (?:
               (?<elseblock>-\h*else\h*(\#.*)?$\v?)
               |
+              (?<elseifblock>-\h*elseif\h*)
+              |
               (?=(?<sigil>%|\#|\.|-\#|-|=|\\|/|!!!))? # stanza type
               (?:-\#|-|=|\\|/|!!!)?                   # consume these stanza types
             )
@@ -225,11 +227,21 @@ function parse_indented_block!(code, curindent, source)
                 firstindent = indent
             elseif !isnothing(elseblock)
                 block = @nolinenodes quote end
+                parseresult = parse_indented_block!(block, indent, source)
                 push!(controlflow_prev.args, block)
+                if !isnothing(parseresult)
+                    _, newline = parseresult
+                end
+                continue
+            elseif !isnothing(elseifblock)
+                condition, _, _ = parse_expressionline(source)
+                block = @nolinenodes quote end
                 parseresult = parse_indented_block!(block, indent, source)
                 if !isnothing(parseresult)
                     _, newline = parseresult
                 end
+                controlflow_this = Expr(:elseif, condition, block)
+                push!(controlflow_prev.args, controlflow_this)
                 continue
             else
                 isnothing(curindent) || firstindent == indent || error(source, "Jagged indentation")

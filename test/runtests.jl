@@ -629,6 +629,17 @@ end
         """
 
         @expandsto """
+        <p>elseif blocks work!</p>
+        """ haml"""
+        - if 2 + 2 == 5
+          %p All else follows
+        - elseif 2 + 2 == 3 # with a comment
+          %p I love Big Brother
+        - else
+          %p elseif blocks work!
+        """
+
+        @expandsto """
         <p>Hello</p>
         """ haml"""
         - begin
