@@ -107,6 +107,23 @@ haml"""
 """ |> println
 ```
 
+There is a small difference in semantics between a named tuple and these
+attributes.  Namely, the `id` and `class` attributes can be duplicated in which
+case all values are collected:
+
+```@repl syntax-reference
+haml"""%(id="foo", class="bar")""" |> println
+
+haml"""%(class="foo", class="bar")""" |> println
+```
+
+Similarly, nested attributes are merged instead of the last one taking
+precedence:
+
+```@repl syntax-reference
+haml"%(data=4, data=(x=3,), data=(y=4,))"
+```
+
 ### Collation and booleans
 
 If the value of an attribute is a boolean, its value is either `attribute='attribute'`
