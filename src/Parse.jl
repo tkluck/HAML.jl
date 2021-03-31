@@ -54,15 +54,16 @@ end
 indentlength(s) = mapreduce(c -> c == '\t' ? 8 : 1, +, s, init=0)
 indentlength(::Nothing) = -1
 
-function extendblock!(block, expr)
-    @assert block isa Expr && block.head == :block
-    if expr isa Expr && expr.head == :block
-        for e in expr.args
-            extendblock!(block, e)
+function extendblock!(target, source)
+    @assert isexpr(:block, target)
+    if isexpr(:block, source)
+        for arg in source.args
+            extendblock!(target, arg)
         end
     else
-        push!(block.args, expr)
+        push!(target.args, source)
     end
+    return target
 end
 
 function parse_tag_stanza!(code, curindent, source)
@@ -257,7 +258,7 @@ function parse_indented_block!(code, curindent, source)
                     if !isnothing(parseresult)
                         _, newline = parseresult
                     end
-                    push!(code.args, loc)
+                    extendblock!(code, loc)
                     extendblock!(code, @nolinenodes quote
                         let first=true
                             $expr
@@ -266,9 +267,9 @@ function parse_indented_block!(code, curindent, source)
                     controlflow_this = expr
                 elseif head == :if
                     expr.args[1] = esc(expr.args[1])
-                    push!(code.args, loc)
-                    extendblock!(code, expr)
+                    extendblock!(code, loc)
                     parseresult = parse_indented_block!(expr.args[2], indent, source)
+                    extendblock!(code, expr)
                     if !isnothing(parseresult)
                         _, newline = parseresult
                     end
@@ -284,14 +285,14 @@ function parse_indented_block!(code, curindent, source)
                     if !isnothing(parseresult)
                         _, newline = parseresult
                     end
-                    push!(code.args, loc)
+                    extendblock!(code, loc)
                     extendblock!(code, @nolinenodes quote
                         let first=true
                             $expr
                         end
                     end)
                 elseif head == :block
-                    push!(code.args, loc)
+                    extendblock!(code, loc)
                     parseresult = parse_indented_block!(expr, indent, source)
                     extendblock!(code, expr)
                     if !isnothing(parseresult)
@@ -299,14 +300,14 @@ function parse_indented_block!(code, curindent, source)
                     end
                 elseif head == :let
                     expr = escapelet(expr)
-                    push!(code.args, loc)
-                    extendblock!(code, expr)
+                    extendblock!(code, loc)
                     parseresult = parse_indented_block!(expr.args[2], indent, source)
+                    extendblock!(code, expr)
                     if !isnothing(parseresult)
                         _, newline = parseresult
                     end
                 elseif head == :function
-                    push!(code.args, loc)
+                    extendblock!(code, loc)
                     body_of_fun = @nolinenodes quote
                     end
                     parse_indented_block!(body_of_fun, indent, source)
@@ -326,8 +327,7 @@ function parse_indented_block!(code, curindent, source)
                     end)
                     newline = ""
                 elseif head == :macro
-                    push!(code.args, loc)
-                    extendblock!(code, expr)
+                    extendblock!(code, loc)
                     body_of_fun = @nolinenodes quote
                     end
                     expr.args[2] = body_of_fun #Expr(:block, Expr(:quote, body_of_fun))
@@ -338,9 +338,10 @@ function parse_indented_block!(code, curindent, source)
                             @output $newline
                         end)
                     end
+                    extendblock!(code, expr)
                     newline = ""
                 elseif isnothing(head)
-                    push!(code.args, loc)
+                    extendblock!(code, loc)
                     extendblock!(code, esc(expr))
                     newline = ""
                 else

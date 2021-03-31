@@ -26,7 +26,7 @@ module Codegen
 
 import ..Hygiene: expand_macros_hygienic, replace_expression_nodes_unescaped, hasnode, mapexpr, isexpr
 import ..Hygiene: mapesc, make_hygienic
-import ..Parse: @nolinenodes
+import ..Parse: @nolinenodes, extendblock!
 import ..SourceTools: Source
 
 module InternalNamespace
@@ -65,6 +65,16 @@ function materialize_indentation(expr, cur="")
         return cur
     elseif expr isa Expr
         return mapexpr(a -> materialize_indentation(a, cur), expr)
+    else
+        return expr
+    end
+end
+
+function flattenblocks(expr)
+    if isexpr(:block, expr)
+        res = @nolinenodes quote
+        end
+        return extendblock!(res, expr)
     else
         return expr
     end
@@ -145,6 +155,7 @@ function generate_haml_writer_codeblock(usermod, source, extraindent="")
     code = expand_macros_hygienic(InternalNamespace, usermod, code)
     code = Expr(:hamlindented, extraindent, code)
     code = materialize_indentation(code)
+    code = flattenblocks(code)
     code = merge_outputs(code)
     return code
 end
