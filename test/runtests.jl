@@ -550,9 +550,12 @@ end
         """
         @expandsto """
         <p>42</p>
+        <p>43</p>
         """ haml"""
         - forest = 42 # don't mistake this for a for loop because it starts with for
+        - elseifvariable = 43 # don't mistake for an elseif
         %p= forest
+        %p= elseifvariable
         """
         @expandsto """
         1 2 3 4 5 6 7 8 9 10

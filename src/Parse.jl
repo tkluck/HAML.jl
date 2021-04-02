@@ -217,7 +217,7 @@ function parse_indented_block!(code, curindent, source)
             (?:
               (?<elseblock>-\h*else\h*(\#.*)?$\v?)
               |
-              (?<elseifblock>-\h*elseif\h*)
+              (?<elseifblock>-\h*elseif\b\h*)
               |
               (?=(?<sigil>%|\#|\.|-\#|-|=|\\|/|!!!))? # stanza type
               (?:-\#|-|=|\\|/|!!!)?                   # consume these stanza types
