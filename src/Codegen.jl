@@ -31,12 +31,12 @@ import ..SourceTools: Source
 
 module InternalNamespace
 
-import ...Escaping: ElementContentContext, LiteralHTML
-import ...Helpers: @output, @indent, @nextline, @indentation, @indented, @io
+    import ...Escaping: ElementContentContext, LiteralHTML
+    import ...Helpers: @output, @indent, @nextline, @indentation, @indented, @io
 
-macro hygienic(expr)
-    return expr
-end
+    macro hygienic(expr)
+        return expr
+    end
 
 end # module InternalNamespace
 
