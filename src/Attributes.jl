@@ -135,14 +135,17 @@ function foldconstants(expr)
     return expr
 end
 
-function writeattributes(attrs)
+function writeattributes(loc, attrs)
     attrs = foldconstants(attrs)
 
     if attrs isa NamedTuple
         s = sprint(io -> attributes_to_string(io, attrs))
         return :( @output $s )
     else
-        return :( $attributes_to_string(@io, $attrs) )
+        return Expr(:block,
+            loc,
+            :( $attributes_to_string(@io, $attrs) ),
+        )
     end
 end
 

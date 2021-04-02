@@ -1,6 +1,6 @@
 module SourceTools
 
-import ..Hygiene: hasnode
+import ..Hygiene: @nolinenodes, hasnode
 
 mutable struct Source
     __source__ :: LineNumberNode
@@ -166,7 +166,9 @@ function parse_contentline(s::Source)
         !isempty(literal) && push!(exprs, literal)
         if nextchar == "\$"
             expr = esc(parse_juliacode(s, greedy=false))
-            expr = :( sprint(io -> print(ElementContentContext(io), $expr)) )
+            expr = @nolinenodes quote
+                sprint(io -> print(ElementContentContext(io), $expr))
+            end
             push!(exprs, expr)
         end
         if nextchar != "\\" && nextchar != "\$"

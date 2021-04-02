@@ -29,27 +29,8 @@ Also note that any Julia code embedded in the HAML source will be wrapped in an
 module Parse
 
 import ..Attributes: AttributeVals, mergeexpr, writeattributes
-import ..Hygiene: mapexpr, escapelet, isexpr
+import ..Hygiene: mapexpr, escapelet, isexpr, @nolinenodes, filterlinenodes
 import ..SourceTools: @capture, @mustcapture, Source, parse_juliacode, parse_contentline, parse_expressionline
-
-function filterlinenodes(expr)
-    if expr isa Expr && expr.head == :block
-        args = filter(e -> !(e isa LineNumberNode), expr.args)
-        args = map(a -> mapexpr(filterlinenodes, a), args)
-        return Expr(expr.head, args...)
-    elseif expr isa Expr && expr.head == :$
-        return expr
-    elseif expr isa Expr
-        return mapexpr(filterlinenodes, expr)
-    else
-        return expr
-    end
-end
-
-macro nolinenodes(expr)
-    @assert expr.head == :quote
-    return esc(mapexpr(filterlinenodes, expr))
-end
 
 indentlength(s) = mapreduce(c -> c == '\t' ? 8 : 1, +, s, init=0)
 indentlength(::Nothing) = -1
@@ -67,6 +48,8 @@ function extendblock!(target, source)
 end
 
 function parse_tag_stanza!(code, curindent, source)
+    stanza_line_number_node = LineNumberNode(source)
+
     @mustcapture source "Expecting a tag name" r"(?:%(?<tagname>[A-Za-z0-9]+)?)?"
     tagname = something(tagname, "div")
 
@@ -111,7 +94,7 @@ function parse_tag_stanza!(code, curindent, source)
         end
     end
 
-    attrs = writeattributes(attrs)
+    attrs = writeattributes(stanza_line_number_node, attrs)
 
     @mustcapture source "Expecting '<', '=', '/', or whitespace" r"""
         (?<eatwhitespace>\<)?

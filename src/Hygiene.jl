@@ -89,4 +89,19 @@ escapelet(expr::Expr) = begin
     return Expr(:let, escapeassignments(expr.args[1]), expr.args[2:end]...)
 end
 
+function filterlinenodes(expr)
+    if isexpr(:block, expr)
+        args = filter(e -> !(e isa LineNumberNode), expr.args)
+        args = map(a -> mapexpr(filterlinenodes, a), args)
+        return Expr(expr.head, args...)
+    else
+        return expr
+    end
+end
+
+macro nolinenodes(expr)
+    @assert expr.head == :quote
+    return esc(mapexpr(filterlinenodes, expr))
+end
+
 end # module
