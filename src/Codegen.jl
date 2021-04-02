@@ -71,13 +71,15 @@ function materialize_indentation(expr, cur="")
 end
 
 function flattenblocks(expr)
+    if expr isa Expr
+        expr = mapexpr(flattenblocks, expr)
+    end
     if isexpr(:block, expr)
         res = @nolinenodes quote
         end
         return extendblock!(res, expr)
-    else
-        return expr
     end
+    return expr
 end
 
 isoutput(expr) = expr isa Expr && expr.head == :hamloutput
