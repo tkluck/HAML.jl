@@ -28,7 +28,7 @@ Also note that any Julia code embedded in the HAML source will be wrapped in an
 """
 module Parse
 
-import ..Attributes: AttributeVals, mergeattributes, writeattributes
+import ..Attributes: AttributeVals, mergeexpr, writeattributes
 import ..Hygiene: mapexpr, escapelet, isexpr
 import ..SourceTools: @capture, @mustcapture, Source, parse_juliacode, parse_contentline, parse_expressionline
 
@@ -91,20 +91,20 @@ function parse_tag_stanza!(code, curindent, source)
             attr_expr.head == :tuple || error(source, loc, "Expecting key=value expression")
             for a in attr_expr.args
                 if isexpr(:(=), a)
-                    attrs = mergeattributes(attrs, a.args[1] => a.args[2])
+                    attrs = mergeexpr(attrs, a.args[1] => a.args[2])
                 elseif isexpr(:(...), a)
-                    attrs = mergeattributes(attrs, :( (;$a) ))
+                    attrs = mergeexpr(attrs, :( (;$a) ))
                 elseif isexpr(:call, a) && a.args[1] == :(=>)
-                    attrs = mergeattributes(attrs, :( (;$a) ))
+                    attrs = mergeexpr(attrs, :( (;$a) ))
                 else
                     error(source, loc, "Expecting key=value expression")
                 end
             end
         else
             if sigil == "."
-                attrs = mergeattributes(attrs, :class => value)
+                attrs = mergeexpr(attrs, :class => value)
             elseif sigil == "#"
-                attrs = mergeattributes(attrs, :id    => value)
+                attrs = mergeexpr(attrs, :id    => value)
             else
                 error(source, "(unreachable) Unknown sigil: $sigil")
             end

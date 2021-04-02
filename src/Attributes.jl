@@ -6,7 +6,8 @@ Contains functions for HAML-style flexible representation of attributes:
 attributes through a named tuple syntax.
 
 Whenever possible we expand the attributes at compile time but we fallback
-to dynamic expansion when necessary.
+to dynamic expansion when necessary. The former case is represented by
+`NamedTuple`s and the latter by `OrderedDict{Symbol}`s.
 """
 module Attributes
 
@@ -15,42 +16,59 @@ import DataStructures: OrderedDict
 import ..Escaping: htmlesc
 import ..Hygiene: isexpr
 
+abstract type Level end
+struct TopLevel <: Level end
+struct NestedLevel <: Level end
+
+const NestedType = Union{NamedTuple, AbstractDict{Symbol}}
+const MultipleType = Union{AbstractVector, AbstractSet}
+
 AttributeVals() = NamedTuple()
 
-mergeattributes(attrs, (k, v)::Pair) = :( $a($attrs, ($k = $(esc(v)),)) )
-mergeattributes(attrs, expr) = :( $a($attrs, $pairs($(esc(expr)))...) )
+mergeexpr(attrs, (k, v)::Pair) = :( $tlmerge($attrs, ($k = $(esc(v)),)) )
+mergeexpr(attrs, expr) = :( $tlmerge($attrs, $pairs($(esc(expr)))...) )
 
-@generated function a(attrs::NamedTuple, x::NamedTuple)
-    @assert length(fieldnames(x)) == 1
-    name, = fieldnames(x)
+tlmerge(args...) = merge(TopLevel(), args...)
 
-    curval = name in fieldnames(attrs) ? :( attrs.$name ) : nothing
-
-    if name == :class
-        return :( Base.merge(attrs, ($name = mergeclass($curval, x.$name),)) )
-    elseif name == :id
-        return :( Base.merge(attrs, ($name = mergeid($curval, x.$name),)) )
-    else
-        return :( Base.merge(attrs, ($name = mergeval($curval, x.$name),)) )
+@generated function merge(level::Level, attrs::NamedTuple, x::NamedTuple)
+    code = quote
     end
+    for name in fieldnames(x)
+        curval = name in fieldnames(attrs) ? :( attrs.$name ) : nothing
+
+        if level == TopLevel && name == :class
+            push!(code.args, :( attrs = Base.merge(attrs, ($name = mergeclass($curval, x.$name),)) ))
+        elseif level == TopLevel && name == :id
+            push!(code.args, :( attrs = Base.merge(attrs, ($name = mergeid($curval, x.$name),)) ))
+        else
+            push!(code.args, :( attrs = Base.merge(attrs, ($name = mergeval($curval, x.$name),)) ))
+        end
+    end
+    code
 end
 
-function a(attrs::NamedTuple, xs::Pair...)
+
+function merge(level::Level, attrs::NestedType, xs::Pair...)
+    # attribute names in `xs` might be dynamic, so don't use named
+    # tuple or the compiler will want to instantiate a different
+    # method for each.
+    if attrs isa NamedTuple
+        attrs = OrderedDict{Symbol, Any}(pairs(attrs))
+    end
     for (name, val) in xs
         curval = name in fieldnames(typeof(attrs)) ? getproperty(attrs, name) : nothing
-        if name == :class
-            attrs = Base.setindex(attrs, mergeclass(curval, val), name)
-        elseif name == :id
-            attrs = Base.setindex(attrs, mergeid(curval, val), name)
+        if level == TopLevel() && name == :class
+            attrs[name] = mergeclass(curval, val)
+        elseif level == TopLevel() && name == :id
+            attrs[name] = mergeid(curval, val)
         else
-            attrs = Base.setindex(attrs, mergeval(curval, val), name)
+            attrs[name] = mergeval(curval, val)
         end
     end
     attrs
 end
 
-const NestedType = Union{NamedTuple, AbstractDict}
-const MultipleType = Union{AbstractVector, AbstractSet}
+merge(level::Level, attrs::NestedType, xs) = merge(level, attrs, pairs(xs)...)
 
 joinpath(path...) = join(path, "-")
 
@@ -75,26 +93,18 @@ leaf(x) = x.leaf
 children(::Nothing) = NamedTuple()
 children(x) = x.children
 
-function merge(x::NamedTuple, y::NestedType)
-    for (name, val) in pairs(y)
-        curval = name in fieldnames(typeof(x)) ? getproperty(x, name) : nothing
-        x = Base.setindex(x, mergeval(curval, val), name)
-    end
-    x
-end
-
 mergeid(curval, val::Nothing) = curval
-mergeid(curval, val::NestedType) = (leaf=leaf(curval), children=merge(children(curval), val))
+mergeid(curval, val::NestedType) = (leaf=leaf(curval), children=merge(NestedLevel(), children(curval), val))
 mergeid(curval, val::MultipleType) = (leaf=joinid(leaf(curval), val...), children=children(curval))
 mergeid(curval, val) = (leaf=joinid(leaf(curval), val), children=children(curval))
 
 mergeclass(curval, val::Nothing) = curval
-mergeclass(curval, val::NestedType) = (leaf=leaf(curval), children=merge(children(curval), val))
+mergeclass(curval, val::NestedType) = (leaf=leaf(curval), children=merge(NestedLevel(), children(curval), val))
 mergeclass(curval, val::MultipleType) = (leaf=joinclass(leaf(curval), val...), children=children(curval))
 mergeclass(curval, val) = (leaf=joinclass(leaf(curval), val), children=children(curval))
 
 mergeval(curval, val::Nothing) = curval
-mergeval(curval, val::NestedType) = (leaf=leaf(curval), children=merge(children(curval), val))
+mergeval(curval, val::NestedType) = (leaf=leaf(curval), children=merge(NestedLevel(), children(curval), val))
 mergeval(curval, val::MultipleType) = (leaf=last(val), children=children(curval))
 mergeval(curval, val) = (leaf=val, children=children(curval))
 
@@ -102,10 +112,10 @@ isconstant(::Union{AbstractString, Number, Tuple, NamedTuple}) = true
 isconstant(x) = false
 
 function foldconstants(expr)
-    if isexpr(:call, expr) && expr.args[1] == a
+    if isexpr(:call, expr) && expr.args[1] in (merge, tlmerge)
         args = map(foldconstants, expr.args[2:end])
         if all(isconstant, args)
-            return a(args...)
+            return expr.args[1](args...)
         end
     elseif isexpr(:escape, expr)
         arg = foldconstants(expr.args[1])
@@ -160,6 +170,25 @@ end
     end
 
     code
+end
+
+function attributes_to_string(io::IO, attrs, prefix::String="")
+    for (k, v) in pairs(attrs)
+        kk = htmlesc(replace("$prefix$k", '_' => '-'))
+        nested_prefix = "$kk-"
+        if !isnothing(v.leaf) && v.leaf !== false
+            print(io, ' ', kk, "='")
+            if v.leaf == true
+                htmlesc(io, kk)
+            else
+                htmlesc(io, v.leaf)
+            end
+            print(io, "'")
+        end
+        if !isnothing(v.children)
+            attributes_to_string(io, v.children, nested_prefix)
+        end
+    end
 end
 
 end # module
