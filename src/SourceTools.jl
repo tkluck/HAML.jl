@@ -167,7 +167,7 @@ function parse_contentline(s::Source)
         if nextchar == "\$"
             expr = esc(parse_juliacode(s, greedy=false))
             expr = @nolinenodes quote
-                sprint(io -> print(ElementContentContext(io), $expr))
+                htmlesc($expr)
             end
             push!(exprs, expr)
         end
