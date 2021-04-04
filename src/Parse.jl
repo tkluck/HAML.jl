@@ -10,7 +10,7 @@ The result of parsing is a normal Julia expression tree, except that the set of
 expression nodes is extended with the following nodes.
 
     - `Expr(:hamloutput, args...)` - represents that each element of `args`
-    should be stringified and appended to the output string
+    should be stringified, escaped, and appended to the output string
 
     - `Expr(:hamlindentation)` - represents a string value for the current
     level of indentation: usually a certain number of tabs or spaces.
@@ -29,6 +29,7 @@ Also note that any Julia code embedded in the HAML source will be wrapped in an
 module Parse
 
 import ..Attributes: AttributeVals, mergeexpr, writeattributes
+import ..Escaping: LiteralHTML
 import ..Hygiene: mapexpr, escapelet, isexpr, @nolinenodes, filterlinenodes
 import ..SourceTools: @capture, @mustcapture, Source, parse_juliacode, parse_contentline, parse_expressionline
 
@@ -143,32 +144,32 @@ function parse_tag_stanza!(code, curindent, source)
         isnothing(code_for_inline_val) || error(source, inlinevalloc, "inline value not supported after /")
         haveblock && error(source, blockloc, "block not supported after /")
         extendblock!(code, @nolinenodes quote
-            @output $"<$tagname"
+            @output $(LiteralHTML("<$tagname"))
             $attrs
-            @output $" />"
+            @output $(LiteralHTML(" />"))
         end)
     elseif haveblock
         isnothing(code_for_inline_val) || error(source, blockloc, "block not supported after =")
         extendblock!(code, @nolinenodes quote
-            @output $"<$tagname"
+            @output $(LiteralHTML("<$tagname"))
             $attrs
-            @output ">"
+            @output $(LiteralHTML(">"))
             $body
-            @output $"</$tagname>"
+            @output $(LiteralHTML("</$tagname>"))
         end)
     elseif !isnothing(code_for_inline_val)
         extendblock!(code, @nolinenodes quote
-            @output $"<$tagname"
+            @output $(LiteralHTML("<$tagname"))
             $attrs
-            @output ">"
+            @output $(LiteralHTML(">"))
             $code_for_inline_val
-            @output $"</$tagname>"
+            @output $(LiteralHTML("</$tagname>"))
         end)
     else
         extendblock!(code, @nolinenodes quote
-            @output $"<$tagname"
+            @output $(LiteralHTML("<$tagname"))
             $attrs
-            @output $"></$tagname>"
+            @output $(LiteralHTML("></$tagname>"))
         end)
     end
     return newline
@@ -349,7 +350,7 @@ function parse_indented_block!(code, curindent, source)
                     error(source, startix, "Block not supported after =")
                 end
                 extendblock!(code, @nolinenodes quote
-                    htmlesc(@io, $(esc(expr)))
+                    @output $(esc(expr))
                 end)
             elseif sigil == "\\" || sigil == nothing
                 @mustcapture source "Expecting space" r"\h*"
@@ -360,9 +361,9 @@ function parse_indented_block!(code, curindent, source)
                 linecode, newline = parse_contentline(source)
                 if !isnothing(linecode)
                     extendblock!(code, @nolinenodes quote
-                        @output "<!-- "
+                        @output $(LiteralHTML("<!-- "))
                         $linecode
-                        @output " -->"
+                        @output $(LiteralHTML(" -->"))
                     end)
                 else
                     body = @nolinenodes quote end
@@ -371,16 +372,16 @@ function parse_indented_block!(code, curindent, source)
                         indentation, newline = parseresult
                         body = filterlinenodes(:( @indented $indentation (@nextline; $body) ))
                         extendblock!(code, @nolinenodes quote
-                            @output $"<!--"
+                            @output $(LiteralHTML("<!--"))
                             $body
-                            @nextline $"-->"
+                            @nextline $(LiteralHTML("-->"))
                         end)
                     end
                 end
             elseif sigil == "!!!"
                 @mustcapture source "Only support '!!! 5'" r"\h*5\h*$(?<newline>\v?)"m
                 extendblock!(code, @nolinenodes quote
-                    @output $"<!DOCTYPE html>"
+                    @output $(LiteralHTML("<!DOCTYPE html>"))
                 end)
             else
                 error(source, "(unreachable) Unrecognized sigil: $sigil")

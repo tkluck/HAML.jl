@@ -85,9 +85,9 @@ macro sourcefile(relpath)
     first = true
     for line in eachline(path)
         if first
-            push!(code.args, Expr(:hamloutput, line))
+            push!(code.args, Expr(:hamloutput, LiteralHTML(line)))
         else
-            push!(code.args, Expr(:hamloutput, "\n", Expr(:hamlindentation), line))
+            push!(code.args, Expr(:hamloutput, "\n", Expr(:hamlindentation), LiteralHTML(line)))
         end
         first = false
     end
@@ -109,13 +109,13 @@ macro cdatafile(relpath)
     path = realpath(joinpath(dir, relpath))
 
     code = quote
-        $(Expr(:hamloutput, "<![CDATA["))
+        $(Expr(:hamloutput, LiteralHTML("<![CDATA[")))
     end
     for line in eachline(path)
         line = replace(line, "]]>" => "]]]]><![CDATA[>")
-        push!(code.args, Expr(:hamloutput, "\n", Expr(:hamlindentation), line))
+        push!(code.args, Expr(:hamloutput, "\n", Expr(:hamlindentation), LiteralHTML(line)))
     end
-    push!(code.args, Expr(:hamloutput, "\n", Expr(:hamlindentation), "]]>"))
+    push!(code.args, Expr(:hamloutput, "\n", Expr(:hamlindentation), LiteralHTML("]]>")))
 
     code
 end

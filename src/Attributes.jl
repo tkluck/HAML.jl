@@ -13,7 +13,7 @@ module Attributes
 
 import DataStructures: OrderedDict
 
-import ..Escaping: htmlesc
+import ..Escaping: LiteralHTML, htmlesc
 import ..Hygiene: isexpr
 
 abstract type Level end
@@ -139,7 +139,7 @@ function writeattributes(loc, attrs)
     attrs = foldconstants(attrs)
 
     if attrs isa NamedTuple
-        s = sprint(io -> attributes_to_string(io, attrs))
+        s = LiteralHTML(io -> attributes_to_string(io, attrs))
         return :( @output $s )
     else
         return Expr(:block,

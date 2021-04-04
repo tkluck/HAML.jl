@@ -166,9 +166,6 @@ function parse_contentline(s::Source)
         !isempty(literal) && push!(exprs, literal)
         if nextchar == "\$"
             expr = esc(parse_juliacode(s, greedy=false))
-            expr = @nolinenodes quote
-                htmlesc($expr)
-            end
             push!(exprs, expr)
         end
         if nextchar != "\\" && nextchar != "\$"

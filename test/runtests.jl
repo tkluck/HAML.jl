@@ -80,11 +80,11 @@ end
         """
         @expandsto """
         <p>
-          <div id="blah">Blah!</div>
+          <div id='blah'>Blah!</div>
         </p>
         """ haml"""
         %p
-          <div id="blah">Blah!</div>
+          $(LiteralHTML("<div id='blah'>Blah!</div>"))
         """
         let title = "MyPage"
             @expandsto """
@@ -392,9 +392,9 @@ end
         """
         @expandsto """
         <!--
-          <p>This doesn't render...</p>
+          <p>This doesn&#39;t render...</p>
           <div>
-            <h1>Because it's commented out!</h1>
+            <h1>Because it&#39;s commented out!</h1>
           </div>
         -->
         """ haml"""
@@ -686,12 +686,12 @@ end
         @expandsto """
         <html>
           <head>
-            <title>The Hitchhiker's guide to the galaxy</title>
+            <title>The Hitchhiker&#39;s guide to the galaxy</title>
           </head>
           <body>
-            <h1>What's the question?</h1>
+            <h1>What&#39;s the question?</h1>
             <p>What&#39;s the answer to life, the universe, and everything?</p>
-            <h2>What's the answer?</h2>
+            <h2>What&#39;s the answer?</h2>
             <p>42</p>
           </body>
         </html>
@@ -702,7 +702,7 @@ end
 
         @expandsto """
         <form>
-          <p>Here's a little button:</p>
+          <p>Here&#39;s a little button:</p>
           <!-- button below -->
           <button onclick='javascript:alert(Thank you for clicking)'>Click me</button>
           <!-- button above -->
@@ -722,12 +722,12 @@ end
             @test """
             <html>
               <head>
-                <title>The Hitchhiker's guide to the galaxy</title>
+                <title>The Hitchhiker&#39;s guide to the galaxy</title>
               </head>
               <body>
-                <h1>What's the question?</h1>
+                <h1>What&#39;s the question?</h1>
                 <p>What&#39;s the answer to life, the universe, and everything?</p>
-                <h2>What's the answer?</h2>
+                <h2>What&#39;s the answer?</h2>
                 <p>42</p>
               </body>
             </html>
@@ -743,12 +743,12 @@ end
             Foo.bar(question="Q", answer="A") == """
         <html>
           <head>
-            <title>The Hitchhiker's guide to the galaxy</title>
+            <title>The Hitchhiker&#39;s guide to the galaxy</title>
           </head>
           <body>
-            <h1>What's the question?</h1>
+            <h1>What&#39;s the question?</h1>
             <p>Q</p>
-            <h2>What's the answer?</h2>
+            <h2>What&#39;s the answer?</h2>
             <p>A</p>
           </body>
         </html>

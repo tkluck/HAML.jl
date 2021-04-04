@@ -24,6 +24,7 @@ All but the last operation are the responsibility of
 """
 module Codegen
 
+import ..Escaping: LiteralHTML, htmlesc
 import ..Hygiene: expand_macros_hygienic, replace_expression_nodes_unescaped, hasnode, mapexpr, isexpr
 import ..Hygiene: mapesc, make_hygienic
 import ..Parse: @nolinenodes, extendblock!
@@ -164,7 +165,7 @@ end
 
 function replace_output_nodes(code, io)
     code = replace_expression_nodes_unescaped(:hamloutput, code) do esc, args...
-        :( write($io, $(esc.(args)...)) )
+        :( htmlesc($io, $(esc.(args)...)) )
     end
     code = replace_expression_nodes_unescaped(:hamlio, code) do esc
         io
@@ -195,10 +196,17 @@ macro haml_str(source)
     code = generate_haml_writer_codeblock(__module__, Source(loc, source))
 
     if isoutput(code) && !hasnode(:hamlio, code)
-        if length(code.args) == 1 && code.args[1] isa String
-            return code.args[1]
+        args = map(code.args) do arg
+            if arg isa AbstractString || arg isa LiteralHTML
+                htmlesc(arg)
+            else
+                Expr(:call, htmlesc, arg)
+            end
+        end
+        if all(arg -> arg isa AbstractString, args)
+            return *(args...)
         else
-            code = Expr(:string, code.args...)
+            code = Expr(:string, args...)
         end
     else
         code = replace_output_nodes(code, :io)
