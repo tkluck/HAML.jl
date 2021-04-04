@@ -9,6 +9,9 @@ The most important entrypoint is
 The result of parsing is a normal Julia expression tree, except that the set of
 expression nodes is extended with the following nodes.
 
+    - `Expr(:hamltag, args...)` - represents an html tag with attributes
+    and contents.
+
     - `Expr(:hamloutput, args...)` - represents that each element of `args`
     should be stringified, escaped, and appended to the output string
 
@@ -54,7 +57,8 @@ function parse_tag_stanza!(code, curindent, source)
     @mustcapture source "Expecting a tag name" r"(?:%(?<tagname>[A-Za-z0-9]+)?)?"
     tagname = something(tagname, "div")
 
-    attrs = AttributeVals()
+    attrs = Expr(:hamlattrs)
+
     while @capture source r"""
         (?=(?<openbracket>\())
         |
@@ -73,29 +77,19 @@ function parse_tag_stanza!(code, curindent, source)
                 attr_expr = :( ($attr_expr,) )
             end
             attr_expr.head == :tuple || error(source, loc, "Expecting key=value expression")
-            for a in attr_expr.args
-                if isexpr(:(=), a)
-                    attrs = mergeexpr(attrs, a.args[1] => a.args[2])
-                elseif isexpr(:(...), a)
-                    attrs = mergeexpr(attrs, :( (;$a) ))
-                elseif isexpr(:call, a) && a.args[1] == :(=>)
-                    attrs = mergeexpr(attrs, :( (;$a) ))
-                else
-                    error(source, loc, "Expecting key=value expression")
-                end
-            end
+            append!(attrs.args, attr_expr.args)
         else
             if sigil == "."
-                attrs = mergeexpr(attrs, :class => value)
+                push!(attrs.args, Expr(:(=), :class, value))
             elseif sigil == "#"
-                attrs = mergeexpr(attrs, :id    => value)
+                push!(attrs.args, Expr(:(=), :id, value))
             else
                 error(source, "(unreachable) Unknown sigil: $sigil")
             end
         end
     end
 
-    attrs = writeattributes(stanza_line_number_node, attrs)
+    #attrs = writeattributes(stanza_line_number_node, attrs)
 
     @mustcapture source "Expecting '<', '=', '/', or whitespace" r"""
         (?<eatwhitespace>\<)?
@@ -140,38 +134,26 @@ function parse_tag_stanza!(code, curindent, source)
         end
         haveblock = true
     end
-    if !isnothing(closingslash)
-        isnothing(code_for_inline_val) || error(source, inlinevalloc, "inline value not supported after /")
-        haveblock && error(source, blockloc, "block not supported after /")
-        extendblock!(code, @nolinenodes quote
-            @output $(LiteralHTML("<$tagname"))
-            $attrs
-            @output $(LiteralHTML(" />"))
-        end)
-    elseif haveblock
-        isnothing(code_for_inline_val) || error(source, blockloc, "block not supported after =")
-        extendblock!(code, @nolinenodes quote
-            @output $(LiteralHTML("<$tagname"))
-            $attrs
-            @output $(LiteralHTML(">"))
-            $body
-            @output $(LiteralHTML("</$tagname>"))
-        end)
-    elseif !isnothing(code_for_inline_val)
-        extendblock!(code, @nolinenodes quote
-            @output $(LiteralHTML("<$tagname"))
-            $attrs
-            @output $(LiteralHTML(">"))
-            $code_for_inline_val
-            @output $(LiteralHTML("</$tagname>"))
-        end)
-    else
-        extendblock!(code, @nolinenodes quote
-            @output $(LiteralHTML("<$tagname"))
-            $attrs
-            @output $(LiteralHTML("></$tagname>"))
-        end)
+    haveclosingslash = !isnothing(closingslash)
+    contents = haveblock ? body : code_for_inline_val
+
+    if haveclosingslash && !isnothing(code_for_inline_val)
+        error(source, inlinevalloc, "inline value not supported after /")
     end
+    if haveclosingslash && haveblock
+        error(source, blockloc, "block not supported after /")
+    end
+    if haveblock && !isnothing(code_for_inline_val)
+        error(source, blockloc, "block not supported after =")
+    end
+    extendblock!(code, Expr(
+        :hamltag,
+        tagname,
+        stanza_line_number_node,
+        attrs,
+        haveclosingslash,
+        contents,
+    ))
     return newline
 end
 

@@ -14,7 +14,7 @@ module Attributes
 import DataStructures: OrderedDict
 
 import ..Escaping: LiteralHTML, htmlesc
-import ..Hygiene: isexpr
+import ..Hygiene: @nolinenodes, isexpr, mapexpr
 
 abstract type Level end
 struct TopLevel <: Level end
@@ -191,6 +191,49 @@ function attributes_to_string(io::IO, attrs, prefix::String="")
         if !isnothing(v.children)
             attributes_to_string(io, v.children, nested_prefix)
         end
+    end
+end
+
+function expand_tag_blocks(code)
+    if isexpr(:hamltag, code)
+        tagname, line_number_node, attrs, closingslash, contents = code.args
+        contents = mapexpr(expand_tag_blocks, contents)
+
+        @assert isexpr(:hamlattrs, attrs)
+        attrsexpr = AttributeVals()
+        for a in attrs.args
+            if isexpr(:(=), a)
+                attrsexpr = mergeexpr(attrsexpr, a.args[1] => a.args[2])
+            elseif isexpr(:(...), a)
+                attrsexpr = mergeexpr(attrsexpr, :( (;$a) ))
+            elseif isexpr(:call, a) && a.args[1] == :(=>)
+                attrsexpr = mergeexpr(attrsexpr, :( (;$a) ))
+            else
+                error("Unexpected expression inside attribute block: '$a'")
+            end
+        end
+
+        attrsexpr = writeattributes(line_number_node, attrsexpr)
+
+        if closingslash
+            return @nolinenodes quote
+                @output $(LiteralHTML("<$tagname"))
+                $attrsexpr
+                @output $(LiteralHTML(" />"))
+            end
+        else
+            return @nolinenodes quote
+                @output $(LiteralHTML("<$tagname"))
+                $attrsexpr
+                @output $(LiteralHTML(">"))
+                $((isnothing(contents) ? [] : [contents])...)
+                @output $(LiteralHTML("</$tagname>"))
+            end
+        end
+    elseif code isa Expr
+        return mapexpr(expand_tag_blocks, code)
+    else
+        return code
     end
 end
 

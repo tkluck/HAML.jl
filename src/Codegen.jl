@@ -24,10 +24,11 @@ All but the last operation are the responsibility of
 """
 module Codegen
 
+import ..Attributes: expand_tag_blocks
 import ..Escaping: LiteralHTML, htmlesc
 import ..Hygiene: expand_macros_hygienic, replace_expression_nodes_unescaped, hasnode, mapexpr, isexpr
-import ..Hygiene: mapesc, make_hygienic
-import ..Parse: @nolinenodes, extendblock!
+import ..Hygiene: @nolinenodes, mapesc, make_hygienic
+import ..Parse: extendblock!
 import ..SourceTools: Source
 
 module InternalNamespace
@@ -145,6 +146,7 @@ end
 
 function generate_haml_writer_codeblock(usermod, source, extraindent="")
     code = Meta.parse(source)
+    code = expand_tag_blocks(code)
     macros = extract_toplevel_macro_defs!(code)
     for m in macros
         m.args[2] = mapesc(m.args[2]) do a
