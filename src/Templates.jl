@@ -6,6 +6,7 @@ import ..Hygiene: make_hygienic, replace_expression_nodes_unescaped
 import ..SourceTools: Source
 import ..Codegen: generate_haml_writer_codeblock, replace_output_nodes, InternalNamespace
 import ..Parse: @nolinenodes
+import ..Escaping
 
 function tokwds(assignments...)
     kwds = map(assignments) do a
@@ -46,7 +47,7 @@ macro include(relpath, args...)
         includehaml(__module__, sym, path)
     end
 
-    res = :( $(esc(sym))($args, $(Expr(:hamlio)), $(Expr(:hamlindentation))) )
+    res = Expr(:hamloutput, Expr(:call, esc(sym), args, Expr(:hamlindentation)))
     return res
 end
 
@@ -73,13 +74,6 @@ includehaml(mod::Module, fns::Pair{Symbol}...) = foreach(fns) do (fn, path)
     includehaml(mod, fn, path)
 end
 
-struct IOClosure{F} <: IO
-    f :: F
-end
-
-Base.write(io::IOClosure, args...) = io.f(args...)
-Base.write(io::IOClosure, arg::Union{SubString{String}, String}) = io.f(arg)
-
 revisehook(mod, fn, path, indent) = nothing
 
 function _includehaml(mod::Module, fn::Symbol, path, indent="")
@@ -92,10 +86,11 @@ function _includehaml(mod::Module, fn::Symbol, path, indent="")
         :( variables.data.$sym )
     end
     fn = esc(fn)
+    interpolate = GlobalRef(Escaping, :interpolate)
     code = @nolinenodes quote
         $fn(io::IO, indent=""; variables...) = $code
-        $fn(f::Function, indent=""; variables...) = $fn($IOClosure(f), indent; variables...)
-        $fn(indent=""; variables...) = sprint(io -> $fn(io, indent; variables...))
+        $interpolate(io::IO, ::typeof($fn), args...; kwds...) = $fn(io, args...; kwds...)
+        $fn(indent=""; variables...) = LiteralHTML(io -> $fn(io, indent; variables...))
     end
     pushfirst!(code.args, s.__source__)
     code = make_hygienic(InternalNamespace, code)
@@ -119,7 +114,7 @@ function render(io, path; variables=(), indent="")
 end
 
 module HamlOnFileSystem
-    import ...Helpers: @output, @io
+    import ...Helpers: @output
     import ...Templates: @include
 end
 

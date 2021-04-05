@@ -22,9 +22,9 @@ import .Escaping: LiteralHTML
 import .SourceTools: Source
 import .Templates: render, @include, includehaml
 import .Helpers: @surround, @precede, @succeed, @sourcefile, @cdatafile
-import .Helpers: @io, @output, @nestedindent
+import .Helpers: @output, @nestedindent
 
-export @haml_str, render, @output, @io, @include, includehaml
+export @haml_str, render, @output, @include, includehaml
 export @surround, @precede, @succeed, @sourcefile, @cdatafile, @nestedindent
 export LiteralHTML
 

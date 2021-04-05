@@ -13,7 +13,7 @@ module Attributes
 
 import DataStructures: OrderedDict
 
-import ..Escaping: LiteralHTML, htmlesc
+import ..Escaping: LiteralHTML, htmlesc, interpolate
 import ..Hygiene: @nolinenodes, isexpr, mapexpr
 
 abstract type Level end
@@ -144,10 +144,11 @@ function writeattributes(loc, attrs)
     else
         return Expr(:block,
             loc,
-            :( $attributes_to_string(@io, $attrs) ),
+            :( @output $attributes_to_string($attrs) ),
         )
     end
 end
+
 
 @generated function attributes_to_string(io::IO, attrs::NamedTuple, prefix::Val{Prefix}=Val(Symbol(""))) where Prefix
     code = quote
@@ -236,5 +237,7 @@ function expand_tag_blocks(code)
         return code
     end
 end
+
+interpolate(io::IO, ::typeof(attributes_to_string), args...) = attributes_to_string(io, args...)
 
 end # module

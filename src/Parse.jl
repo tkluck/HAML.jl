@@ -22,10 +22,6 @@ expression nodes is extended with the following nodes.
     scope `expr`, the current level of indentation should be increased by
     concatenating `indent`.
 
-    - `Expr(:hamlio)` - represents a value of type `IO` that can be used as an
-    argument for `Base.write`, resulting in appending to the output string.
-    (Usually, one should use `:hamloutput` instead.)
-
 Also note that any Julia code embedded in the HAML source will be wrapped in an
 `Expr(:escape, ...)` node.
 """

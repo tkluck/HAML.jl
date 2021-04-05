@@ -15,7 +15,7 @@ a pure Julia expression tree. This means it takes care of:
  - Join any adjacent `:hamloutput` nodes and apply as many string
  concatenations as possible at compile time
 
- - Replace `:hamloutput` and `:hamlio` nodes by either a string concatenation
+ - Replace `:hamloutput` nodes by either a string concatenation
  mechanism or a `write(io, ...)` operation
 
 All but the last operation are the responsibility of
@@ -34,7 +34,7 @@ import ..SourceTools: Source
 module InternalNamespace
 
     import ...Escaping: LiteralHTML, htmlesc, interpolate
-    import ...Helpers: @output, @indent, @nextline, @indentation, @indented, @io
+    import ...Helpers: @output, @indent, @nextline, @indentation, @indented
 
     macro hygienic(expr)
         return expr
@@ -180,10 +180,14 @@ function replace_output_nodes(code, io)
         Expr(:block, resargs...)
     end
     code = replace_expression_nodes_unescaped(:hamlinterpolate, code) do esc, args...
-        Expr(:call, interpolate, io, esc.(args)...)
-    end
-    code = replace_expression_nodes_unescaped(:hamlio, code) do esc
-        io
+        if length(args) >= 2 && (
+                isexpr(:parameters, args[2]) ||
+                (isexpr(:escape, args[2]) && isexpr(:parameters, args[2].args[1])))
+            f, kw, a... = args
+            Expr(:call, interpolate, esc(kw), io, esc(f), esc.(a)...)
+        else
+            Expr(:call, interpolate, io, esc.(args)...)
+        end
     end
     return code
 end
@@ -210,7 +214,7 @@ macro haml_str(source)
     loc = LineNumberNode(__source__.line + 1, __source__.file)
     code = generate_haml_writer_codeblock(__module__, Source(loc, source))
 
-    if isoutput(code) && !hasnode(:hamlio, code)
+    if isoutput(code)
         args = map(code.args) do arg
             if arg isa AbstractString || arg isa LiteralHTML
                 htmlesc(arg)

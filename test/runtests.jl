@@ -740,7 +740,7 @@ end
         @test includehaml(Foo, :foo => hamljl("hitchhiker.hamljl"), :bar => hamljl("hitchhiker.hamljl")) == nothing
         @test Foo.hitchhiker(question="Q", answer="A") ==
             Foo.foo(question="Q", answer="A") ==
-            Foo.bar(question="Q", answer="A") == """
+            Foo.bar(question="Q", answer="A") == LiteralHTML("""
         <html>
           <head>
             <title>The Hitchhiker&#39;s guide to the galaxy</title>
@@ -752,7 +752,7 @@ end
             <p>A</p>
           </body>
         </html>
-        """
+        """)
 
         # recursion
         @expandsto """
@@ -786,7 +786,7 @@ end
 
         includehaml(Foo, :context, hamljl("context.hamljl"))
 
-        @test Foo.context() == """
+        @test Foo.context() == LiteralHTML("""
         <dl>
           <dt>Module</dt>
           <dd>Main.Foo</dd>
@@ -795,7 +795,7 @@ end
           <dt>File</dt>
           <dd>$(hamljl("context.hamljl"))</dd>
         </dl>
-        """
+        """)
     end
 
     @testset "File/line information" begin
@@ -820,7 +820,9 @@ end
         """ == realpath(joinpath(@__DIR__, "hamljl", "at-file.hamljl")) * "\n"
 
         includehaml(Foo, :atfile => hamljl("at-file.hamljl"))
-        @test Foo.atfile() == realpath(joinpath(@__DIR__, "hamljl", "at-file.hamljl")) * "\n"
+        @test Foo.atfile() == LiteralHTML(
+            realpath(joinpath(@__DIR__, "hamljl", "at-file.hamljl")) * "\n"
+        )
     end
 
     @testset "Syntax error reporting" begin
@@ -961,14 +963,14 @@ end
         mktemp() do path, _
             append(path, "%p Hallo\n")
             includehaml(Main, :foo, path)
-            @test Base.invokelatest(foo) == "<p>Hallo</p>\n"
+            @test Base.invokelatest(foo) == LiteralHTML("<p>Hallo</p>\n")
 
             sleep(0.1)
             append(path, "%p Bye\n")
             sleep(0.1)
 
             Revise.revise()
-            @test Base.invokelatest(foo) == "<p>Hallo</p>\n<p>Bye</p>\n"
+            @test Base.invokelatest(foo) == LiteralHTML("<p>Hallo</p>\n<p>Bye</p>\n")
         end
     end
 end

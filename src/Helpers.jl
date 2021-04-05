@@ -2,10 +2,6 @@ module Helpers
 
 import ..Escaping: LiteralHTML
 
-macro io()
-    Expr(:hamlio)
-end
-
 macro indentation()
     Expr(:hamlindentation)
 end
