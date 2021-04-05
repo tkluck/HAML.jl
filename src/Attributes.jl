@@ -158,7 +158,7 @@ end
         nested_prefix = Val(Symbol("$kk-"))
         push!(code.args, quote
             if !isnothing(attrs.$k.leaf) && attrs.$k.leaf !== false
-                print(io, ' ', $kk, "='")
+                print(io, $" $kk='")
                 if attrs.$k.leaf == true
                     htmlesc(io, $kk)
                 else
