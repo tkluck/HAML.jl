@@ -110,7 +110,7 @@ function parse_tag_stanza!(code, curindent, source)
             error(source, startix, "Block not supported after =")
         end
         code_for_inline_val = @nolinenodes quote
-            htmlesc(@io, $(esc(expr)))
+            @output $(esc(expr))
         end
     else
         code_for_inline_val, newline = parse_contentline(source)
@@ -163,8 +163,6 @@ function indentdiff(a, b)
     startswith(a, b) || error("Expecting uniform indentation")
     return a[1+length(b):end]
 end
-
-function HELPER end
 
 function parse_indented_block!(code, curindent, source)
     controlflow_this = nothing
@@ -299,9 +297,9 @@ function parse_indented_block!(code, curindent, source)
                     extendblock!(code, @nolinenodes quote
                         # TODO: support kwargs
                         $name_of_fun($(argspec...)) = begin
-                            LiteralHTML(io -> HELPER(io, $name_of_fun, $(argnames...)))
+                            LiteralHTML(io -> interpolate(io, $name_of_fun, $(argnames...)))
                         end
-                        HELPER(io::IO, ::typeof($name_of_fun), $(argspec...)) = $body_of_fun
+                        interpolate(io::IO, ::typeof($name_of_fun), $(argspec...)) = $body_of_fun
                     end)
                     newline = ""
                 elseif head == :macro

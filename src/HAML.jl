@@ -3,8 +3,8 @@ module HAML
 
 import Requires: @require
 
-include("Escaping.jl")
 include("Hygiene.jl")
+include("Escaping.jl")
 include("SourceTools.jl")
 include("Attributes.jl")
 include("Parse.jl")

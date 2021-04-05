@@ -25,15 +25,15 @@ All but the last operation are the responsibility of
 module Codegen
 
 import ..Attributes: expand_tag_blocks
-import ..Escaping: LiteralHTML, htmlesc
+import ..Escaping: LiteralHTML, htmlesc, interpolate
 import ..Hygiene: expand_macros_hygienic, replace_expression_nodes_unescaped, hasnode, mapexpr, isexpr
-import ..Hygiene: @nolinenodes, mapesc, make_hygienic
+import ..Hygiene: @nolinenodes, mapesc, make_hygienic, replace_expression_nodes, replace_value_expression
 import ..Parse: extendblock!
 import ..SourceTools: Source
 
 module InternalNamespace
 
-    import ...Escaping: LiteralHTML, htmlesc
+    import ...Escaping: LiteralHTML, htmlesc, interpolate
     import ...Helpers: @output, @indent, @nextline, @indentation, @indented, @io
 
     macro hygienic(expr)
@@ -89,7 +89,8 @@ isoutput(expr) = expr isa Expr && expr.head == :hamloutput
 extendoutput!(output) = output
 
 function extendoutput!(output, x, xs...)
-    if !isempty(output) && output[end] isa AbstractString && x isa AbstractString
+    Composable = Union{AbstractString, LiteralHTML}
+    if !isempty(output) && output[end] isa Composable && x isa Composable
         output[end] *= x
     else
         push!(output, x)
@@ -166,8 +167,20 @@ function generate_haml_writer_codeblock(usermod, source, extraindent="")
 end
 
 function replace_output_nodes(code, io)
-    code = replace_expression_nodes_unescaped(:hamloutput, code) do esc, args...
-        :( htmlesc($io, $(esc.(args)...)) )
+    code = replace_expression_nodes(:hamloutput, code) do args...
+        resargs = map(args) do arg
+            replace_value_expression(arg) do expr
+                if isexpr(:call, expr)
+                    return Expr(:hamlinterpolate, expr.args...)
+                else
+                    return Expr(:hamlinterpolate, identity, expr)
+                end
+            end
+        end
+        Expr(:block, resargs...)
+    end
+    code = replace_expression_nodes_unescaped(:hamlinterpolate, code) do esc, args...
+        Expr(:call, interpolate, io, esc.(args)...)
     end
     code = replace_expression_nodes_unescaped(:hamlio, code) do esc
         io

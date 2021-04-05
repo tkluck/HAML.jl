@@ -59,6 +59,29 @@ function replace_expression_nodes_unescaped(f, head, expr)
     return should_escape ? esc(expr) : expr
 end
 
+function replace_expression_nodes(f, head, expr)
+    if !hasnode(head, expr)
+        return expr
+    elseif isexpr(head, expr)
+        return f(expr.args...)
+    elseif expr isa Expr
+        return mapexpr(e -> replace_expression_nodes(f, head, e), expr)
+    else
+        return expr
+    end
+end
+
+function replace_value_expression(f, expr)
+    if isexpr(:block, expr)
+        isempty(expr.args) && return f(expr)
+        return Expr(:block, expr.args[1:end-1]..., replace_value_expression(f, expr.args[end]))
+    elseif isexpr(:escape, expr)
+        return Expr(:escape, replace_value_expression(f, expr.args[1]))
+    else
+        return f(expr)
+    end
+end
+
 function mapesc(f, expr)
     if isexpr(:escape, expr)
         return mapexpr(f, expr)

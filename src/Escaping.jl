@@ -8,6 +8,8 @@ to be interpolated into different contexts.
 """
 module Escaping
 
+import ..Hygiene: isexpr
+
 htmlesc(io::IO) = nothing
 function htmlesc(io::IO, val, vals...)
     for c in string(val)
@@ -32,9 +34,16 @@ end
 
 LiteralHTML(f::Function) = LiteralHTML(sprint(f))
 
+Base.:*(x::LiteralHTML, y::LiteralHTML) = LiteralHTML(x.html * y.html)
+Base.:*(x::AbstractString, y::LiteralHTML) = LiteralHTML(htmlesc(x, y))
+Base.:*(x::LiteralHTML, y::AbstractString) = LiteralHTML(htmlesc(x, y))
+
 function htmlesc(io::IO, val::LiteralHTML, vals...)
     print(io, val.html)
     htmlesc(io, vals...)
 end
+
+interpolate(io::IO, f, args...; kwds...) = htmlesc(io, f(args...; kwds...))
+interpolate(io::IO, f::typeof(|>), arg, fn) = interpolate(io, fn, arg)
 
 end # module

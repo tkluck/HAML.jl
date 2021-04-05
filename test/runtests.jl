@@ -873,7 +873,7 @@ end
         %a(href="./index.html")
         """) isa String
 
-        @test_broken @macroexpand(haml"""
+        @test @macroexpand(haml"""
         !!! 5
         %html
           %head
