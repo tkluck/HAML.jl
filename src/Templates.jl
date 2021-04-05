@@ -86,9 +86,6 @@ function _includehaml(mod::Module, fn::Symbol, path, indent="")
     Base.include_dependency(path)
     s = Source(path)
     code = generate_haml_writer_codeblock(mod, s, Expr(:string, indent, :indent))
-    #code = replace_expression_nodes_unescaped(:hamloutput, code) do esc, content...
-    #    :( f($(map(esc, content)...)) )
-    #end
     code = replace_output_nodes(code, :io)
     code = replace_expression_nodes_unescaped(:$, code) do esc, sym
         sym isa Symbol || error("Can only use variables as interpolations")
