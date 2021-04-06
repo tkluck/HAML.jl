@@ -78,6 +78,12 @@ ignore(x) = false
 
 joinid(::Nothing, val) = string(val)
 
+if VERSION < v"1.4"
+    _filter(f) = ()
+    _filter(f, v, vals...) = f(v) ? (v, _filter(f, vals...)...) : _filter(f, vals...)
+    Base.filter(f, vals::Tuple) = _filter(f, vals...)
+end
+
 function joinid(vals...)
     v = filter(!ignore, vals)
     return isempty(v) ? nothing : join(v, "-")

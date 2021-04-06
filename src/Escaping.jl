@@ -43,7 +43,7 @@ function htmlesc(io::IO, val, vals...)
         # See also Base.write(::IO, ::Char).
         x = bswap(reinterpret(UInt32, c))
         unsafe_store!(Ptr{UInt32}(ptr), x)
-        ptr += max(1, div(32 - leading_zeros(x), 8, RoundUp))
+        ptr += max(1, cld(32 - leading_zeros(x), 8))
     end
     unsafe_write(io, buf, ptr - buf)
 
