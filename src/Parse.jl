@@ -284,19 +284,26 @@ function parse_indented_block!(code, curindent, source)
                     end
                     parse_indented_block!(body_of_fun, indent, source)
                     name_of_fun = esc(expr.args[1].args[1])
-                    argspec = esc.(expr.args[1].args[2:end])
-                    argnames = map(expr.args[1].args[2:end]) do arg
-                        isexpr(:(::), arg) && return esc(arg.args[1])
-                        arg isa Symbol && return esc(arg)
-                        error("Can't understand argument: $arg")
+
+                    argspec = expr.args[1].args[2:end]
+                    if !isempty(argspec) && isexpr(:parameters, argspec[1])
+                        kw = esc(argspec[1])
+                        a = esc.(argspec[2:end])
+                        extendblock!(code, @nolinenodes quote
+                            $name_of_fun($kw, $(a...)) = begin
+                                LiteralHTML(io -> interpolate($kw, io, $name_of_fun, $(a...)))
+                            end
+                            interpolate($kw, io::IO, ::typeof($name_of_fun), $(a...)) = $body_of_fun
+                        end)
+                    else
+                        a = esc.(argspec)
+                        extendblock!(code, @nolinenodes quote
+                            $name_of_fun($(a...)) = begin
+                                LiteralHTML(io -> interpolate(io, $name_of_fun, $(a...)))
+                            end
+                            interpolate(io::IO, ::typeof($name_of_fun), $(a...)) = $body_of_fun
+                        end)
                     end
-                    extendblock!(code, @nolinenodes quote
-                        # TODO: support kwargs
-                        $name_of_fun($(argspec...)) = begin
-                            LiteralHTML(io -> interpolate(io, $name_of_fun, $(argnames...)))
-                        end
-                        interpolate(io::IO, ::typeof($name_of_fun), $(argspec...)) = $body_of_fun
-                    end)
                     newline = ""
                 elseif head == :macro
                     extendblock!(code, loc)

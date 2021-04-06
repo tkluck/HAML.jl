@@ -660,14 +660,18 @@ end
         haml"""
         - function paragraph(text)
           %p= text
+        - function span(text; kwds...)
+          %span(kwds...)= text
         """
 
         @expandsto """
         <p>hello</p>
         <p>world</p>
+        <span style='font-weight: bold'>from haml</span>
         """ haml"""
         = paragraph("hello")
         = paragraph("world")
+        = span("from haml", style="font-weight: bold")
         """
 
         @expandsto """
