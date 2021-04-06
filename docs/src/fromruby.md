@@ -23,11 +23,11 @@ underscores in keys are replaced by dashes:
 %a(href="/posts", data=(author_id=123, category=7)) Posts By Author
 ```
 
-If you need another special character in the attribute, it with `Symbol(...) =>`.
+If you need another special character in the attribute, use the `var"..."` syntax.
 For example, the attribute `xml:lang`:
 
 ```
-%html(xmlns = "http://www.w3.org/1999/xhtml", Symbol("xml:lang") => "en", lang="en")
+%html(xmlns = "http://www.w3.org/1999/xhtml", var"xml:lang"="en", lang="en")
 ```
 
 ## Helper methods are usually macros
@@ -65,3 +65,17 @@ If you use [`@haml_str`](@ref) or [`HAML.includehaml`](@ref) the HAML code runs 
 module you own. If you want to use macros or helper methods (e.g.,
 [`@include`](@ref) or [`@surround`](@ref) then you need to either use `using
 HAML` or import them.
+
+## Literal content is always escaped
+
+You cannot include literal HTML directly. For example:
+
+```
+<p id='literal-html'>This is some literal html</p>
+```
+
+If you need to, use interpolation syntax together with the `LiteralHTML` type:
+
+```
+$(LiteralHTML("<p id='literal-html'>This is some literal html</p>"))
+```
