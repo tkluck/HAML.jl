@@ -27,7 +27,7 @@ function htmlesc(io::IO, val, vals...)
     ptr = buf
 
     for c in stringval
-        if (ptr - buf) > SCRATCHPADSIZE - 8 # we will at most write an UInt64 below
+        if (ptr - buf) > SCRATCHPADSIZE - sizeof(UInt64) # we will at most write an UInt64 below
             unsafe_write(io, buf, ptr - buf)
             ptr = buf
         end
