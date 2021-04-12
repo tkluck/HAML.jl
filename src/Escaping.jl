@@ -8,7 +8,12 @@ to be interpolated into different contexts.
 """
 module Escaping
 
-import ..Hygiene: isexpr
+htmlesc(io::IO) = nothing
+
+function htmlesc(io::IO, val, vals...)
+    htmlesc(io, val)
+    htmlesc(io, vals...)
+end
 
 const SCRATCHPADSIZE = 1024
 const SCRATCHPADS = [zeros(UInt8, SCRATCHPADSIZE) for _ in Threads.nthreads()]
@@ -18,9 +23,9 @@ const SCRATCHPADS = [zeros(UInt8, SCRATCHPADSIZE) for _ in Threads.nthreads()]
     ptr + significant_bytes
 end
 
-htmlesc(io::IO) = nothing
-
-function htmlesc(io::IO, val, vals...)
+function htmlesc(io::IO, val)
+    # important: keep any function calls outside of the area where `buf` is in
+    # use, just in case it recursively ends up calling htmlesc again
     stringval = string(val)
 
     buf = pointer(SCRATCHPADS[Threads.threadid()])
@@ -43,11 +48,13 @@ function htmlesc(io::IO, val, vals...)
         # See also Base.write(::IO, ::Char).
         x = bswap(reinterpret(UInt32, c))
         unsafe_store!(Ptr{UInt32}(ptr), x)
-        ptr += max(1, cld(32 - leading_zeros(x), 8))
+        ptr += 1
+        ptr += x != x & 0xff
+        ptr += x != x & 0xffff
+        ptr += x != x & 0xffffff
     end
     unsafe_write(io, buf, ptr - buf)
-
-    htmlesc(io, vals...)
+    nothing
 end
 
 htmlesc(vals...) = sprint(io -> htmlesc(io, vals...))
@@ -62,9 +69,8 @@ Base.:*(x::LiteralHTML, y::LiteralHTML) = LiteralHTML(x.html * y.html)
 Base.:*(x::AbstractString, y::LiteralHTML) = LiteralHTML(htmlesc(x, y))
 Base.:*(x::LiteralHTML, y::AbstractString) = LiteralHTML(htmlesc(x, y))
 
-function htmlesc(io::IO, val::LiteralHTML, vals...)
+function htmlesc(io::IO, val::LiteralHTML)
     print(io, val.html)
-    htmlesc(io, vals...)
 end
 
 interpolate(io::IO, f, args...; kwds...) = htmlesc(io, f(args...; kwds...))
@@ -77,32 +83,40 @@ interpolate(io::IO, f::typeof(string), args...) = htmlesc(io, args...)
 # from julia Base:
 # 2-digit decimal characters ("00":"99")
 const _dec_d100 = UInt16[(0x30 + i % 10) << 0x8 + (0x30 + i ÷ 10) for i = 0:99]
+const DIGITSCRATCHPADS = [zeros(UInt8, SCRATCHPADSIZE) for _ in Threads.nthreads()]
 
-function htmlesc(io::IO, x::UInt, vals...)
-    buffer = SCRATCHPADS[Threads.threadid()]
+function htmlesc(io::IO, x::UInt)
+    digitsbuf = DIGITSCRATCHPADS[Threads.threadid()]
     n = ndigits(x; base=100)
     @assert n <= SCRATCHPADSIZE
 
-    digits!(@view(buffer[1:n]), x; base=100)
+    digits!(@view(digitsbuf[1:n]), x; base=100)
+
+    buf = pointer(SCRATCHPADS[Threads.threadid()])
+    ptr = buf
 
     i = n
-    if buffer[i] >= 10
-        write(io, _dec_d100[buffer[i] + 1])
+    if digitsbuf[i] >= 10
+        unsafe_store!(Ptr{UInt16}(ptr), _dec_d100[digitsbuf[i] + 1])
+        ptr += 2
     else
-        write(io, '0' + buffer[i])
+        unsafe_store!(Ptr{UInt8}(ptr), UInt8('0') + UInt8(digitsbuf[i]))
+        ptr += 1
     end
     for i in n-1:-1:1
-        write(io, _dec_d100[buffer[i] + 1])
+        unsafe_store!(Ptr{UInt16}(ptr), _dec_d100[digitsbuf[i] + 1])
+        ptr += 2
     end
-    htmlesc(io, vals...)
+    unsafe_write(io, buf, ptr - buf)
+    nothing
 end
 
-function htmlesc(io::IO, x::Int, vals...)
+function htmlesc(io::IO, x::Int)
     if signbit(x)
         write(io, '-')
-        htmlesc(io, ~reinterpret(UInt, x) + 1, vals...)
+        htmlesc(io, ~reinterpret(UInt, x) + 1)
     else
-        htmlesc(io, reinterpret(UInt, x), vals...)
+        htmlesc(io, reinterpret(UInt, x))
     end
 end
 
