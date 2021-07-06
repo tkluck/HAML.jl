@@ -79,7 +79,7 @@ function _includehaml(mod::Module, fn::Symbol, path, indent="")
     end
     code = replace_expression_nodes_unescaped(:$, code) do esc, sym
         sym isa Symbol || error("Can only use variables as interpolations")
-        :( variables.data.$sym )
+        :( variables[$(QuoteNode(sym))] )
     end
     fn = esc(fn)
     code = quote
