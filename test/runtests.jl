@@ -635,9 +635,10 @@ end
         @expandsto """
         <p>elseif blocks work!</p>
         """ haml"""
-        - if 2 + 2 == 5
+        - two = 2
+        - if 2 + two == 5
           %p All else follows
-        - elseif 2 + 2 == 3 # with a comment
+        - elseif 2 + two  == 3 # with a comment
           %p I love Big Brother
         - else
           %p elseif blocks work!

@@ -195,6 +195,7 @@ function parse_indented_block!(code, curindent, source)
                 continue
             elseif !isnothing(elseifblock)
                 condition, _, _ = parse_expressionline(source)
+                condition = esc(condition)
                 block = @nolinenodes quote end
                 parseresult = parse_indented_block!(block, indent, source)
                 if !isnothing(parseresult)
