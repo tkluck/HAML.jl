@@ -18,10 +18,16 @@ end
 const SCRATCHPADSIZE = 1024
 const SCRATCHPADS = [zeros(UInt8, SCRATCHPADSIZE) for _ in Threads.nthreads()]
 
-@inline function unsafe_set!(ptr, val::UInt64, significant_bytes)
+@inline function unsafe_set!(ptr, (val, significant_bytes))
     unsafe_store!(Ptr{UInt64}(ptr), val)
     ptr + significant_bytes
 end
+
+const var"&amp;" = htol(0x0000003b706d6126), 5
+const var"&lt;" = htol(0x000000003b746c26), 4
+const var"&gt;" = htol(0x000000003b746726), 4
+const var"&quot;" = htol(0x00003b746f757126), 6
+const var"&#39;" = htol(0x0000003b39332326), 5
 
 function htmlesc(io::IO, val)
     # important: keep any function calls outside of the area where `buf` is in
@@ -38,11 +44,11 @@ function htmlesc(io::IO, val)
         end
         # from:
         # https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html#rule-1-html-encode-before-inserting-untrusted-data-into-html-element-content
-        c == '&'  && (ptr = unsafe_set!(ptr, htol(0x0000003b706d6126), 5 #= "&amp;"  =#); continue)
-        c == '<'  && (ptr = unsafe_set!(ptr, htol(0x000000003b746c26), 4 #= "&lt;"   =#); continue)
-        c == '>'  && (ptr = unsafe_set!(ptr, htol(0x000000003b746726), 4 #= "&gt;"   =#); continue)
-        c == '"'  && (ptr = unsafe_set!(ptr, htol(0x00003b746f757126), 6 #= "&quot;" =#); continue)
-        c == '\'' && (ptr = unsafe_set!(ptr, htol(0x0000003b39332326), 5 #= "&#39;"  =#); continue)
+        c == '&'  && (ptr = unsafe_set!(ptr, var"&amp;"); continue)
+        c == '<'  && (ptr = unsafe_set!(ptr, var"&lt;"); continue)
+        c == '>'  && (ptr = unsafe_set!(ptr, var"&gt;"); continue)
+        c == '"'  && (ptr = unsafe_set!(ptr, var"&quot;"); continue)
+        c == '\'' && (ptr = unsafe_set!(ptr, var"&#39;"); continue)
 
         # Char is always big endian in Julia, and we need it in little endian here.
         # See also Base.write(::IO, ::Char).
