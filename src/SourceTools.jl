@@ -80,7 +80,7 @@ function parse_juliacode(s::Source, snippet::AbstractString, snippet_location::S
     return with_linenode ? Expr(:block, loc, expr) : expr
 end
 
-struct ParseError
+struct ParseError <: Exception
     source :: Source
     error  :: Any
 end
