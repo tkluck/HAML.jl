@@ -55,9 +55,9 @@ function htmlesc(io::IO, val)
         x = bswap(reinterpret(UInt32, c))
         unsafe_store!(Ptr{UInt32}(ptr), x)
         ptr += 1
-        ptr += x != x & 0xff
-        ptr += x != x & 0xffff
-        ptr += x != x & 0xffffff
+        ptr += (x != (x & 0xff))
+        ptr += (x != (x & 0xffff))
+        ptr += (x != (x & 0xffffff))
     end
     unsafe_write(io, buf, ptr - buf)
     nothing
