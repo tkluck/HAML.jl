@@ -32,7 +32,7 @@ const var"&#39;" = htol(0x0000003b39332326), 5
 function htmlesc(io::IO, val)
     # important: keep any function calls outside of the area where `buf` is in
     # use, just in case it recursively ends up calling htmlesc again
-    stringval = string(val)
+    stringval = val isa AbstractString ? val : string(val)
 
     buf = pointer(SCRATCHPADS[Threads.threadid()])
     ptr = buf
