@@ -217,7 +217,19 @@ function parse_indented_block!(code, curindent, source)
                     @mustcapture source "Expecting comment continuing" r".*$\v?"m
                 end
                 newline = ""
-            elseif sigil == "-"
+            elseif sigil in ("-", "=")
+                if sigil == "="
+                    tgt = @nolinenodes quote
+                    end
+                    extendblock!(code, @nolinenodes quote
+                        @output $tgt
+                    end)
+                elseif sigil == "-"
+                    tgt = code
+                else
+                    error("Unreachable")
+                end
+
                 startix = source.ix
                 loc = LineNumberNode(source)
                 expr, head, newline = parse_expressionline(source, with_linenode=false)
@@ -231,8 +243,8 @@ function parse_indented_block!(code, curindent, source)
                     if !isnothing(parseresult)
                         _, newline = parseresult
                     end
-                    extendblock!(code, loc)
-                    extendblock!(code, @nolinenodes quote
+                    extendblock!(tgt, loc)
+                    extendblock!(tgt, @nolinenodes quote
                         let first=true
                             $expr
                         end
@@ -240,9 +252,9 @@ function parse_indented_block!(code, curindent, source)
                     controlflow_this = expr
                 elseif head == :if
                     expr.args[1] = esc(expr.args[1])
-                    extendblock!(code, loc)
+                    extendblock!(tgt, loc)
                     parseresult = parse_indented_block!(expr.args[2], indent, source)
-                    extendblock!(code, expr)
+                    extendblock!(tgt, expr)
                     if !isnothing(parseresult)
                         _, newline = parseresult
                     end
@@ -258,24 +270,24 @@ function parse_indented_block!(code, curindent, source)
                     if !isnothing(parseresult)
                         _, newline = parseresult
                     end
-                    extendblock!(code, loc)
-                    extendblock!(code, @nolinenodes quote
+                    extendblock!(tgt, loc)
+                    extendblock!(tgt, @nolinenodes quote
                         let first=true
                             $expr
                         end
                     end)
                 elseif head == :block
-                    extendblock!(code, loc)
+                    extendblock!(tgt, loc)
                     parseresult = parse_indented_block!(expr, indent, source)
-                    extendblock!(code, expr)
+                    extendblock!(tgt, expr)
                     if !isnothing(parseresult)
                         _, newline = parseresult
                     end
                 elseif head == :let
                     expr = escapelet(expr)
-                    extendblock!(code, loc)
+                    extendblock!(tgt, loc)
                     parseresult = parse_indented_block!(expr.args[2], indent, source)
-                    extendblock!(code, expr)
+                    extendblock!(tgt, expr)
                     if !isnothing(parseresult)
                         _, newline = parseresult
                     end
@@ -290,7 +302,7 @@ function parse_indented_block!(code, curindent, source)
                     if !isempty(argspec) && isexpr(:parameters, argspec[1])
                         kw = esc(argspec[1])
                         a = esc.(argspec[2:end])
-                        extendblock!(code, @nolinenodes quote
+                        extendblock!(tgt, @nolinenodes quote
                             $name_of_fun($kw, $(a...)) = begin
                                 LiteralHTML(io -> interpolate($kw, io, $name_of_fun, $(a...)))
                             end
@@ -305,9 +317,11 @@ function parse_indented_block!(code, curindent, source)
                             interpolate(io::IO, ::typeof($name_of_fun), $(a...)) = $body_of_fun
                         end)
                     end
-                    newline = ""
+                    if sigil == "-"
+                        newline = ""
+                    end
                 elseif head == :macro
-                    extendblock!(code, loc)
+                    extendblock!(tgt, loc)
                     body_of_fun = @nolinenodes quote
                     end
                     expr.args[2] = body_of_fun #Expr(:block, Expr(:quote, body_of_fun))
@@ -318,24 +332,19 @@ function parse_indented_block!(code, curindent, source)
                             @output $newline
                         end)
                     end
-                    extendblock!(code, expr)
-                    newline = ""
+                    extendblock!(tgt, expr)
+                    if sigil == "-"
+                        newline = ""
+                    end
                 elseif isnothing(head)
-                    extendblock!(code, loc)
-                    extendblock!(code, esc(expr))
-                    newline = ""
+                    extendblock!(tgt, loc)
+                    extendblock!(tgt, esc(expr))
+                    if sigil == "-"
+                        newline = ""
+                    end
                 else
                     error(source, startix, "Unexpected expression head: $head")
                 end
-            elseif sigil == "="
-                startix = source.ix
-                expr, head, newline = parse_expressionline(source)
-                if !isnothing(head)
-                    error(source, startix, "Block not supported after =")
-                end
-                extendblock!(code, @nolinenodes quote
-                    @output $(esc(expr))
-                end)
             elseif sigil == "\\" || sigil == nothing
                 @mustcapture source "Expecting space" r"\h*"
                 linecode, newline = parse_contentline(source)
