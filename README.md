@@ -4,9 +4,9 @@
 
 HTML Abstract Markup Language for Julia. Inspired by [Ruby's HAML](http://haml.info/).
 
-| **Build Status**                                                | **Test coverage**                                       |
-|:---------------------------------------------------------------:|:-------------------------------------------------------:|
-| [![][travis-img]][travis-url] [![][appveyor-img]][appveyor-url] | [![Coverage Status][codecov-img]][codecov-url]      |
+| **Build Status**        | **Test coverage**                              |
+|:-----------------------:|:----------------------------------------------:|
+| [![][c-i-img]][c-i-url] | [![Coverage Status][codecov-img]][codecov-url] |
 
 ## Synopsis
 
@@ -56,11 +56,8 @@ If you are already familiar with Ruby-flavoured HAML, [read about the
 differences here][fromruby]. If not, either use read the [getting started guide][gettingstarted]
 or the [syntax reference][syntax].
 
-[travis-img]: https://travis-ci.org/tkluck/HAML.jl.svg?branch=master
-[travis-url]: https://travis-ci.org/tkluck/HAML.jl
-
-[appveyor-img]: https://ci.appveyor.com/api/projects/status/ga7fdg5mxnfe3po4?svg=true
-[appveyor-url]: https://ci.appveyor.com/project/tkluck/haml-jl
+[c-i-img]: https://github.com/tkluck/HAML.jl/workflows/CI/badge.svg
+[c-i-url]: https://github.com/tkluck/HAML.jl/actions?query=workflow%3ACI
 
 [codecov-img]: https://codecov.io/gh/tkluck/HAML.jl/branch/master/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/tkluck/HAML.jl
