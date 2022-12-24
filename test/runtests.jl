@@ -5,19 +5,6 @@ using DataStructures: OrderedDict
 using Revise
 
 """
-    @expandsto "
-        <html output>
-    " haml"
-        <haml input>
-    "
-
-A helper macro that makes the tests just slightly more readable.
-"""
-macro expandsto(str1, str2)
-    :( @test $(esc(str1)) == $(esc(str2)) )
-end
-
-"""
         @test @errorat (i, j) haml"
         - %a
         "
@@ -67,32 +54,32 @@ end
 
 @testset "HAML" begin
     @testset "Plain Text" begin
-        @expandsto """
+        @test """
         <gee>
           <whiz>
             Wow this is cool!
           </whiz>
         </gee>
-        """ haml"""
+        """ == haml"""
         %gee
           %whiz
             Wow this is cool!
         """
-        @expandsto """
+        @test """
         <p>
           <div id='blah'>Blah!</div>
         </p>
-        """ haml"""
+        """ == haml"""
         %p
           $(LiteralHTML("<div id='blah'>Blah!</div>"))
         """
         let title = "MyPage"
-            @expandsto """
+            @test """
             <title>
               MyPage
               = title
             </title>
-            """ haml"""
+            """ == haml"""
             %title
               = title
               \= title
@@ -100,39 +87,39 @@ end
         end
     end
     @testset "HTML elements" begin
-        @expandsto """
+        @test """
         <one>
           <two>
             <three>Hey there</three>
           </two>
         </one>
-        """ haml"""
+        """ == haml"""
         %one
           %two
             %three Hey there
         """
-        @expandsto """
+        @test """
         <html xmlns='http://www.w3.org/1999/xhtml' xml:lang='en' lang='en'></html>
-        """ haml"""
+        """ == haml"""
         %html(xmlns = "http://www.w3.org/1999/xhtml", var"xml:lang"="en", lang="en")
         """
-        @expandsto """
+        @test """
         <html xmlns='http://www.w3.org/1999/xhtml' xml:lang='en' lang='en'></html>
-        """ haml"""
+        """ == haml"""
         %html(xmlns = "http://www.w3.org/1999/xhtml", Symbol("xml:lang") => "en", lang="en")
         """
-        @expandsto """
+        @test """
         <script type='text/javascript' src='javascripts/script_9'></script>
-        """ haml"""
+        """ == haml"""
         %script(type = "text/javascript",
                 src  = "javascripts/script_$(2 + 7)")
         """
         let sortdir = :ascending, sortcol = (id=1, _type=:numeric)
-            @expandsto """
+            @test """
             <div class='numeric sort ascending'>Contents</div>
             <div class='numeric'>Contents</div>
             <div>Contents</div>
-            """ haml"""
+            """ == haml"""
             - for item in [ (id=1, _type=:numeric), (id=2, _type=:numeric), (id=3, _type=nothing) ]
               %div(class = [item._type; item == sortcol && [:sort, sortdir]]) Contents
             """
@@ -140,60 +127,60 @@ end
         begin
             hash1() = OrderedDict(:bread => "white", :filling => "peanut butter and jelly")
             hash2() = OrderedDict(:bread => "whole wheat")
-            @expandsto """
+            @test """
             <sandwich bread='whole wheat' filling='peanut butter and jelly' delicious='yes' />
-            """ haml"""
+            """ == haml"""
             %sandwich(hash1()..., hash2()..., delicious = "yes")/
             """
         end
 
         let item = []
-            @expandsto """
+            @test """
             <div class='item empty'></div>
-            """ haml"""
+            """ == haml"""
             .item(class = isempty(item) && "empty")
             """
         end
 
         let items = ["foo", "bar"]
-            @expandsto """
+            @test """
             <div id='foo-bar'></div>
-            """ haml"""
+            """ == haml"""
             %(id=items)
             """
 
-            @expandsto """
+            @test """
             <div class='foo bar'></div>
-            """ haml"""
+            """ == haml"""
             %(class=items)
             """
         end
 
-        @expandsto """
+        @test """
         <a href='/posts' data-author-id='123' data-category='7'>Posts By Author</a>
-        """ haml"""
+        """ == haml"""
         %a(href="/posts", data=(author_id=123, category=7)) Posts By Author
         """
 
-        @expandsto """
+        @test """
         <input selected='selected' />
-        """ haml"""
+        """ == haml"""
         %input(selected=true)/
         """
 
-        @expandsto """
+        @test """
         <input />
-        """ haml"""
+        """ == haml"""
         %input(selected=false)/
         """
 
-        @expandsto """
+        @test """
         <div id='things'>
             <span id='rice'>Chicken Fried</span>
             <p class='beans' food='true'>The magical fruit</p>
             <h1 class='class otherclass' id='id'>La La La</h1>
         </div>
-        """ haml"""
+        """ == haml"""
         %div#things
             %span#rice Chicken Fried
             %p.beans(food = "true") The magical fruit
@@ -201,78 +188,78 @@ end
         """
 
         let kwds=(href="/index.html", style="text-color:blue")
-            @expandsto """
+            @test """
             <a href='/index.html' style='text-color:blue'></a>
-            """ haml"""
+            """ == haml"""
             %a(kwds...)
             """
         end
 
-        @expandsto """
+        @test """
         <blockquote><div>
           Foo!
         </div></blockquote>
-        """ haml"""
+        """ == haml"""
         %blockquote<
           %div
             Foo!
         """
 
-        @expandsto """
+        @test """
         <div class='foo-bar'></div>
-        """ haml"""
+        """ == haml"""
         .foo-bar
         """
 
-        @expandsto """
+        @test """
         <span a='2'></span>
-        """ haml"""
+        """ == haml"""
         %span(a=1, a=2)
         """
 
-        @expandsto """
+        @test """
         <span data-a-b='2' data-a-b='3'></span>
-        """ haml"""
+        """ == haml"""
         %span(var"data-a"=(b=2,), data=(var"a-b"=3,))
         """
 
-        @expandsto """
+        @test """
         <span data-a-b='3' data-a-c='3'></span>
-        """ haml"""
+        """ == haml"""
         %span(var"data-a"=(b=2,c=3), var"data-a"=(b=3,))
         """
 
     end
     @testset "Whitespace" begin
-        @expandsto "" haml""
-        @expandsto "
-        " haml"
+        @test "" == haml""
+        @test "
+        " == haml"
         "
-        @expandsto "
+        @test "
 
-        " haml"
+        " == haml"
 
         "
         # no closing newline
-        @expandsto "<div class='hello'></div>" haml"%div.hello"
+        @test "<div class='hello'></div>" == haml"%div.hello"
 
         # extra closing newline after expression
-        @expandsto """
+        @test """
         <p>42</p>
 
-        """ haml"""
+        """ == haml"""
         %p= 42
 
         """
 
         # keep indentation even with intermediate code lines
-        @expandsto """
+        @test """
         <div>
           <p>Hello</p>
           <p>How are you?</p>
           <p>Bye</p>
         </div>
-        """ haml"""
+        """ == haml"""
         %
           %p Hello
           - msg = "How are you?"
@@ -282,13 +269,13 @@ end
         """
 
         # completely empty line in the middle of an indented block
-        @expandsto """
+        @test """
         <div>
           <p>First paragraph</p>
 
           <p>Second paragraph</p>
         </div>
-        """ haml"""
+        """ == haml"""
         %div
           %p First paragraph
 
@@ -296,13 +283,13 @@ end
         """
 
         # equally indented empty line in the middle of an indented block
-        @expandsto """
+        @test """
         <div>
           <p>First paragraph</p>
           
           <p>Second paragraph</p>
         </div>
-        """ haml"""
+        """ == haml"""
         %div
           %p First paragraph
           
@@ -310,13 +297,13 @@ end
         """
 
         # overly indented empty line in the middle of an indented block
-        @expandsto """
+        @test """
         <div>
           <p>First paragraph</p>
                
           <p>Second paragraph</p>
         </div>
-        """ haml"""
+        """ == haml"""
         %div
           %p First paragraph
                
@@ -326,11 +313,11 @@ end
 
     @testset "Julia syntax embedding" begin
         # a comment after the comma
-        @expandsto """
+        @test """
         <a href='#' c='d'>Hello everyone!</a>
         <div>1</div>
         <div>2</div>
-        """ haml"""
+        """ == haml"""
         %a(href="#", # set href to #
               c="d") Hello everyone!
         - array = [1, # the first element
@@ -340,12 +327,12 @@ end
         """
 
         # the characters #"' in annoying places
-        @expandsto """
+        @test """
         #
         \$
         &quot;
         &quot;
-        """ haml"""
+        """ == haml"""
         - for s in ["#", "\$", "\\""] # correctly parse some special characters
           = s
         - for s in ['"']
@@ -354,14 +341,14 @@ end
     end
     @testset "Escaping" begin
         let motto="Let's get ready"
-            @expandsto """
+            @test """
             <span motto='Let&#39;s get ready'></span>
             <div>Let&#39;s get ready</div>
             Let&#39;s get ready
             The motto is Let&#39;s get ready
             <p>Let&#39;s get ready</p>
             <div></div>
-            """ haml"""
+            """ == haml"""
             %span(motto=motto)
             %= motto
             = motto
@@ -373,48 +360,48 @@ end
 
     end
     @testset "Doctype" begin
-        @expandsto """
+        @test """
         <!DOCTYPE html>
-        """ haml"""
+        """ == haml"""
         !!! 5
         """
     end
     @testset "Comments" begin
-        @expandsto """
+        @test """
         <peanutbutterjelly>
           <!-- This is the peanutbutterjelly element -->
           I like sandwiches!
         </peanutbutterjelly>
-        """ haml"""
+        """ == haml"""
         %peanutbutterjelly
           / This is the peanutbutterjelly element
           I like sandwiches!
         """
-        @expandsto """
+        @test """
         <!--
           <p>This doesn&#39;t render...</p>
           <div>
             <h1>Because it&#39;s commented out!</h1>
           </div>
         -->
-        """ haml"""
+        """ == haml"""
         /
           %p This doesn't render...
           %div
             %h1 Because it's commented out!
         """
-        @expandsto """
+        @test """
         <p>foo</p>
         <p>bar</p>
-        """ haml"""
+        """ == haml"""
         %p foo
         -# This is a comment
         %p bar
         """
-        @expandsto """
+        @test """
         <p>foo</p>
         <p>bar</p>
-        """ haml"""
+        """ == haml"""
         %p foo
         -#
           This won't be displayed
@@ -424,25 +411,25 @@ end
         """
     end
     @testset "Helper methods" begin
-        @expandsto """
+        @test """
         (<a href='#'>learn more</a>)
-        """ haml"""
+        """ == haml"""
         - @surround("(", ")") do
           %a(href="#") learn more
         """
-        @expandsto """
+        @test """
         *<span>Required</span>
-        """ haml"""
+        """ == haml"""
         - @precede("*") do
           %span Required
         """
-        @expandsto """
+        @test """
         Begin by
         <a href='#'>filling out your profile</a>,
         <a href='#'>adding a bio</a>,
         and
         <a href='#'>inviting friends</a>.
-        """ haml"""
+        """ == haml"""
         Begin by
         - @succeed(",") do
           %a(href="#") filling out your profile
@@ -453,68 +440,68 @@ end
           %a(href="#") inviting friends
         """
 
-        @expandsto """
+        @test """
         <div>
           <p>A paragraph from a source file</p>
-        </div>""" haml"""
+        </div>""" == haml"""
         %
           - @sourcefile("hamljl/paragraph.html")
         """
 
-        @expandsto """
+        @test """
         <script>
           <![CDATA[
           function foo() {
           }
           ]]>
-        </script>""" haml"""
+        </script>""" == haml"""
         %script
           - @cdatafile("hamljl/foo.js")
         """
     end
     @testset "Julia evaluation" begin
-        @expandsto """
+        @test """
         <p>
           hi there reader!
           yo
         </p>
-        """ haml"""
+        """ == haml"""
         %p
           = join(["hi", "there", "reader!"], " ")
           = "yo"
         """
-        @expandsto """
+        @test """
         &lt;script&gt;alert(&quot;I&#39;m evil!&quot;);&lt;/script&gt;
-        """ haml"""
+        """ == haml"""
         = "<script>alert(\\"I'm evil!\\");</script>"
         """
-        @expandsto """
+        @test """
         <p>hello</p>
-        """ haml"""
+        """ == haml"""
         %p= "hello"
         """
-        @expandsto """
+        @test """
         <p>hello there you!</p>
-        """ haml"""
+        """ == haml"""
         - foo = "hello"
         - foo *= " there"
         - foo *= " you!"
         %p= foo
         """
         let quality = "scrumptious"
-            @expandsto """
+            @test """
             <p>This is scrumptious cake!</p>
-            """ haml"""
+            """ == haml"""
             %p This is $quality cake!
             """
         end
         let word = "yon"
-            @expandsto raw"""
+            @test raw"""
             <p>
               Look at \yon lack of backslash: $foo
               And yon presence thereof: \foo
             </p>
-            """ haml"""
+            """ == haml"""
             %p
               Look at \\$word lack of backslash: \$foo
               And yon presence thereof: \foo
@@ -531,110 +518,110 @@ end
         end
     end
     @testset "Hygiene w.r.t. internal variables" begin
-        @expandsto """
+        @test """
         <p>42</p>
-        """ haml"""
+        """ == haml"""
         - io = 42
         %p= io
         """
-        @expandsto """
+        @test """
         <p>42</p>
-        """ haml"""
+        """ == haml"""
         - writeattributes = 42
         %p= writeattributes
         """
-        @expandsto """
+        @test """
         <p>42</p>
-        """ haml"""
+        """ == haml"""
         - writehaml = 42
         %p= writehaml
         """
-        @expandsto """
+        @test """
         <p>42</p>
         <p>43</p>
-        """ haml"""
+        """ == haml"""
         - forest = 42 # don't mistake this for a for loop because it starts with for
         - elseifvariable = 43 # don't mistake for an elseif
         %p= forest
         %p= elseifvariable
         """
-        @expandsto """
+        @test """
         1 2 3 4 5 6 7 8 9 10
-        """ haml"""
+        """ == haml"""
         = haml"= join(1:10, ' ')"
         """
-        @expandsto """
+        @test """
         Hi!
         Hello!
         Bye!
-        """ haml"""
+        """ == haml"""
         Hi!
         - @output "Hello!\n"
         - @HAML.output "Bye!\n"
         """
-        @expandsto """
+        @test """
         Using the @output macro
-        """ haml"""
+        """ == haml"""
         - @include("hamljl/at-output.hamljl")
         """
         let attribute = :href # hygiene of the => operator inside a named tuple
-            @expandsto """
+            @test """
             <a class='link' href='/index.html'>Home</a>
-            """ haml"""
+            """ == haml"""
             %a(class="link", attribute => "/index.html") Home
             """
         end
     end
     @testset "Control flow" begin
-        @expandsto """
+        @test """
         <div>1</div>
         <div>2</div>
         <div>3</div>
-        """ haml"""
+        """ == haml"""
         - for i in 1:3
           %= i
         """
 
-        @expandsto """
+        @test """
         <div>1</div>
         <div>2</div>
         <div>3</div>
-        """ haml"""
+        """ == haml"""
         - map(1:3) do i
           %= i
         """
 
-        @expandsto """
+        @test """
         <div>3</div>
         <div>2</div>
         <div>1</div>
-        """ haml"""
+        """ == haml"""
         - list = collect(1:3)
         - while !isempty(list)
           %= pop!(list)
         """
 
-        @expandsto """
+        @test """
         <p>All else follows</p>
-        """ haml"""
+        """ == haml"""
         - if 2 + 2 == 4
           %p All else follows
         - else
           %p I love Big Brother
         """
 
-        @expandsto """
+        @test """
         <p>I love Big Brother</p>
-        """ haml"""
+        """ == haml"""
         - if 2 + 2 == 5
           %p All else follows
         - else # with a comment
           %p I love Big Brother
         """
 
-        @expandsto """
+        @test """
         <p>elseif blocks work!</p>
-        """ haml"""
+        """ == haml"""
         - two = 2
         - if 2 + two == 5
           %p All else follows
@@ -644,16 +631,16 @@ end
           %p elseif blocks work!
         """
 
-        @expandsto """
+        @test """
         <p>Hello</p>
-        """ haml"""
+        """ == haml"""
         - begin
           %p Hello
         """
 
-        @expandsto """
+        @test """
         <p>Hello</p>
-        """ haml"""
+        """ == haml"""
         - let greeting = "Hello"
           %p= greeting
         """
@@ -665,20 +652,20 @@ end
           %span(kwds...)= text
         """
 
-        @expandsto """
+        @test """
         <p>hello</p>
         <p>world</p>
         <span style='font-weight: bold'>from haml</span>
-        """ haml"""
+        """ == haml"""
         = paragraph("hello")
         = paragraph("world")
         = span("from haml", style="font-weight: bold")
         """
 
-        @expandsto """
+        @test """
         <p>hello</p>
         <p>world</p>
-        """ haml"""
+        """ == haml"""
         - macro paragraph(text)
           %p= text
         - @paragraph("hello")
@@ -688,7 +675,7 @@ end
 
     @testset "File format" begin
 
-        @expandsto """
+        @test """
         <html>
           <head>
             <title>The Hitchhiker&#39;s guide to the galaxy</title>
@@ -700,12 +687,12 @@ end
             <p>42</p>
           </body>
         </html>
-        """ haml"""
+        """ == haml"""
         - answer = 42
         - @include("hamljl/hitchhiker.hamljl", question = "What's the answer to life, the universe, and everything?", answer = answer)
         """
 
-        @expandsto """
+        @test """
         <form>
           <p>Here&#39;s a little button:</p>
           <!-- button below -->
@@ -713,7 +700,7 @@ end
           <!-- button above -->
           <p>Did you see the little button?</p>
         </form>
-        """ haml"""
+        """ == haml"""
         - @include("hamljl/form.hamljl")
         """
 
@@ -760,17 +747,17 @@ end
         """)
 
         # recursion
-        @expandsto """
+        @test """
         1
         2
         3
         4
         5
-        """ haml"""
+        """ == haml"""
         - @include("hamljl/recursion.hamljl", count=5)
         """
 
-        @expandsto """
+        @test """
         <dl>
           <dt>Module</dt>
           <dd>Main</dd>
@@ -779,7 +766,7 @@ end
           <dt>File</dt>
           <dd>$(@__FILE__)</dd>
         </dl>
-        """ haml"""
+        """ == haml"""
         %dl
           %dt Module
           %dd= @__MODULE__
@@ -805,13 +792,13 @@ end
 
     @testset "File/line information" begin
         line = @__LINE__
-        @expandsto """
+        @test """
         <ul>
           <li>$(line +  9)</li>
           <li>$(line + 10)</li>
           <li>$(line + 11)</li>
         </ul>
-        """ haml"""
+        """ == haml"""
         %ul
           %li= @__LINE__
           %li= @__LINE__
@@ -921,7 +908,7 @@ end
           = x
         """
 
-        @expandsto """
+        @test """
         <dl>
           <dt>x</dt>
           <dd><dl>
@@ -934,7 +921,7 @@ end
           <dt>w</dt>
           <dd>4</dd>
         </dl>
-        """ haml"""
+        """ == haml"""
         = @nestedindent f(a)
         """
     end
@@ -945,17 +932,17 @@ end
           %p Hello from my first macro
         """
 
-        @expandsto """
+        @test """
         <p>Hello from my first macro</p>
-        """ haml"""
+        """ == haml"""
         - @my_first_macro
         """
 
-        @expandsto """
+        @test """
         <p>42</p>
         <p>42</p>
         42
-        """ haml"""
+        """ == haml"""
         - @Bar.barmacro(42)
         - @Bar.bazmacro(42)
         """
