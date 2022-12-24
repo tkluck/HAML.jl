@@ -844,7 +844,7 @@ end
         %a(3)
         """
 
-        @test_broken @errorat (1, 12) haml"""
+        @test @errorat (1, 3 #= TODO: 12 would be better =#) haml"""
         %a(href=1, 3)
         """
 

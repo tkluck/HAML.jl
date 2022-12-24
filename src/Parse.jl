@@ -73,6 +73,12 @@ function parse_tag_stanza!(code, curindent, source)
                 attr_expr = :( ($attr_expr,) )
             end
             attr_expr.head == :tuple || error(source, loc, "Expecting key=value expression")
+            for a in attr_expr.args
+                isexpr(:(=), a) && continue
+                isexpr(:(...), a) && continue
+                isexpr(:call, a) && a.args[1] == :(=>) && continue
+                error(source, loc, "Unexpected expression inside attribute block: '$a'")
+            end
             append!(attrs.args, attr_expr.args)
         else
             if sigil == "."
