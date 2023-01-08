@@ -77,7 +77,7 @@ end
 revisehook(mod, fn, path, indent) = nothing
 
 function _includehaml(mod::Module, fn::Symbol, path, indent="")
-    Base.include_dependency(path)
+    mod.include_dependency(path)
     s = Source(path)
     code = generate_haml_writer_codeblock(mod, s, Expr(:string, indent, :indent))
     code = replace_output_nodes(code, :io)
