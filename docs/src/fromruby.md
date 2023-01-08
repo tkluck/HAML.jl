@@ -30,16 +30,10 @@ For example, the attribute `xml:lang`:
 %html(xmlns = "http://www.w3.org/1999/xhtml", var"xml:lang"="en", lang="en")
 ```
 
-## Helper methods are usually macros
+## Many helper methods are not implemented yet
 
 Many of the [Ruby-flavoured helper methods](http://haml.info/docs/yardoc/Haml/Helpers.html) are
-not supported (yet). The ones that are (e.g., [`@surround`](@ref)) are
-macros. In particular, note that you should use `-` and not `=` as in Ruby:
-
-```
-- @surround("(", ")") do
-  %span Hello
-```
+not supported (yet).
 
 ## Interpolation expects Julia syntax
 
@@ -63,7 +57,7 @@ Use `$` for interpolation in literal text instead of `#{...}`. Example:
 
 If you use [`@haml_str`](@ref) or [`HAML.includehaml`](@ref) the HAML code runs in a
 module you own. If you want to use macros or helper methods (e.g.,
-[`@include`](@ref) or [`@surround`](@ref) then you need to either use `using
+[`@include`](@ref) or [`surround`](@ref) then you need to either use `using
 HAML` or import them.
 
 ## Literal content is always escaped
