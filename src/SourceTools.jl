@@ -16,7 +16,7 @@ Represent Julia-flavoured HAML source code that can be parsed using
 the `Meta.parse` function.
 """
 Source(__source__::LineNumberNode, text::AbstractString) = Source(__source__, text, 1)
-Source(path::AbstractString) = Source(LineNumberNode(1, Symbol(path)), read(path, String), 1)
+Source(path::AbstractString) = Source(LineNumberNode(1, Symbol(path)), replace(read(path, String), r"\r\n"=>'\n'), 1)
 
 function linecol(s::Source, ix::Int=s.ix)
     line, col = 1, 1
