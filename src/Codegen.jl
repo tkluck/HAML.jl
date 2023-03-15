@@ -183,11 +183,7 @@ function replace_output_nodes(code, io)
         if length(args) >= 2 && (
                 isexpr(:parameters, args[2]) ||
                 (isexpr(:escape, args[2]) && isexpr(:parameters, args[2].args[1])))
-            # TODO: replace by
-            #     f, kw, a... = args
-            # once we are on Julia 1.6
-            f, kw = args[1:2]
-            a = args[3:end]
+            f, kw, a... = args
             Expr(:call, interpolate, esc(kw), io, esc(f), esc.(a)...)
         else
             Expr(:call, interpolate, io, esc.(args)...)
